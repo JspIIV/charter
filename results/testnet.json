@@ -1,0 +1,91 @@
+{
+  "proved_at": "2026-09-06T18:50:41.008Z",
+  "chain": "genlayer testnet asimov",
+  "token": "0xDE119CC63c8C2AF6D48f9b540Cd454fE703Cb83e",
+  "rounds_needed": 1,
+  "rules": {
+    "token": "TCHT",
+    "rules": [
+      {
+        "index": 0,
+        "when": "the page states that a security certificate has expired",
+        "checked_against": "https://gist.githubusercontent.com/JspIIV/2ff5af1cd421395420c9ec33b9ecbebf/raw/claim_false.txt",
+        "then": "BURN",
+        "amount": "40000",
+        "state": "FIRED",
+        "fired_at": "2026-09-06T18:47:40+00:00",
+        "fired_by": "0x0b57877ec84d96b672cd47d8ea4424283fdb9f6c",
+        "why": "The page stated that the certificate expired on 2026-01-01",
+        "quote": "The certificate expired on 2026-01-01"
+      }
+    ],
+    "frozen": true,
+    "bounty": "0",
+    "bounty_ever_funded": "2000000000000000",
+    "waiting_rules": 0,
+    "bounty_per_waiting_rule": "0",
+    "note": "these rules were written into the token when it was launched and no method on this contract can add, edit or remove one; anybody may call tick to make a rule whose condition is met carry itself out, and is paid the bounty share for doing so; a bounty of 0 means nobody has yet put up anything to have these rules checked"
+  },
+  "status": {
+    "name": "Charter Testnet",
+    "symbol": "TCHT",
+    "creator": "0x80519c53f10d731e4ff83a7d9acd69cf98da6258",
+    "launched_at": "2026-09-06T18:23:40+00:00",
+    "supply": "960200",
+    "treasury": "260000",
+    "bounty": "0",
+    "bounty_ever_funded": "2000000000000000",
+    "holders": 2,
+    "top_holders": [
+      {
+        "who": "0x80519c53f10d731e4ff83a7d9acd69cf98da6258",
+        "holds": "700000"
+      },
+      {
+        "who": "0x0b57877ec84d96b672cd47d8ea4424283fdb9f6c",
+        "holds": "200"
+      }
+    ],
+    "rules": 1,
+    "waiting": 0,
+    "fired": 1
+  },
+  "checks": [
+    {
+      "label": "the bounty funded on testnet",
+      "ok": true
+    },
+    {
+      "label": "a rule fires on testnet",
+      "ok": true
+    },
+    {
+      "label": "the burn came out of the supply",
+      "ok": true
+    },
+    {
+      "label": "the round quoted the page",
+      "ok": true
+    }
+  ],
+  "transcript": [
+    "Finishing the testnet proof on 0xDE119CC63c8C2AF6D48f9b540Cd454fE703Cb83e",
+    "  (fund: node at capacity, waiting 1s)",
+    "  (fund: node at capacity, waiting 2s)",
+    "  (fund: node at capacity, waiting 3s)",
+    "  (fund: node at capacity, waiting 4s)",
+    "  fund finalized in 89s",
+    "  tick 1 finalized in 176s",
+    "  testnet says FIRED",
+    "  supply  960200",
+    "  because The page stated that the certificate expired on 2026-01-01",
+    "  quoting \"The certificate expired on 2026-01-01\"",
+    "",
+    "  ok   the bounty funded on testnet",
+    "  ok   a rule fires on testnet",
+    "  ok   the burn came out of the supply",
+    "  ok   the round quoted the page",
+    "",
+    "4 checks, on the network a wallet can reach. Rounds needed: 1."
+  ]
+}
