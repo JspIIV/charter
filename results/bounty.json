@@ -1,0 +1,113 @@
+{
+  "proved_at": "2026-09-06T17:17:47.674Z",
+  "chain": "genlayer studionet",
+  "token": "0xBfA918cCa4fD9fA57B8d99a5656d34a6b7733FFE",
+  "creator": "0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+  "keeper": "0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+  "bounty_wei": "2000000000000000",
+  "keeper_balance_before": "136150666666666666665",
+  "keeper_balance_after": "136152666666666666665",
+  "net_change_wei": "2000000000000000",
+  "rules": {
+    "token": "BNTY",
+    "rules": [
+      {
+        "index": 0,
+        "when": "the page states that a security certificate has expired",
+        "checked_against": "https://gist.githubusercontent.com/JspIIV/2ff5af1cd421395420c9ec33b9ecbebf/raw/claim_false.txt",
+        "then": "BURN",
+        "amount": "40000",
+        "state": "FIRED",
+        "fired_at": "2026-09-06T17:16:55.398103+00:00",
+        "fired_by": "0x0b57877ec84d96b672cd47d8ea4424283fdb9f6c",
+        "why": "the page explicitly states the security certificate has expired",
+        "quote": "The certificate expired on 2026-01-01."
+      }
+    ],
+    "frozen": true,
+    "bounty": "0",
+    "bounty_ever_funded": "2000000000000000",
+    "waiting_rules": 0,
+    "bounty_per_waiting_rule": "0",
+    "note": "these rules were written into the token when it was launched and no method on this contract can add, edit or remove one; anybody may call tick to make a rule whose condition is met carry itself out, and is paid the bounty share for doing so; a bounty of 0 means nobody has yet put up anything to have these rules checked"
+  },
+  "firings": {
+    "token": "BNTY",
+    "count": 1,
+    "firings": [
+      {
+        "rule": 0,
+        "when": "the page states that a security certificate has expired",
+        "then": "BURN",
+        "amount": "39800",
+        "at": "2026-09-06T17:16:55.398103+00:00",
+        "by": "0x0b57877ec84d96b672cd47d8ea4424283fdb9f6c",
+        "why": "the page explicitly states the security certificate has expired",
+        "quote": "The certificate expired on 2026-01-01.",
+        "bounty_paid": "2000000000000000"
+      }
+    ]
+  },
+  "note": "studionet did not charge the keeper for this call, so the balance change is the bounty alone and says nothing about gas coverage",
+  "checks": [
+    {
+      "label": "the rule fired",
+      "ok": true
+    },
+    {
+      "label": "the whole bounty went to the one waiting rule",
+      "ok": true
+    },
+    {
+      "label": "the badge shows nothing left behind it",
+      "ok": true
+    },
+    {
+      "label": "and the badge still remembers what was put up",
+      "ok": true
+    },
+    {
+      "label": "the coin arrived in an account that is not the creator",
+      "ok": true
+    },
+    {
+      "label": "the token records who was paid",
+      "ok": true
+    },
+    {
+      "label": "and what the round said it was reading when it decided",
+      "ok": true
+    }
+  ],
+  "transcript": [
+    "charter.fun bounty, on GenLayer Studionet.",
+    "",
+    "  creator 0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+    "  keeper  0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "",
+    "The creator launches a token and puts up the bounty.",
+    "  token 0xBfA918cCa4fD9fA57B8d99a5656d34a6b7733FFE",
+    "  fund finalized in 38s",
+    "  the badge now reads bounty 2000000000000000 across 1 waiting rule(s)",
+    "",
+    "A different address calls tick. It is not the creator and needs nobody's",
+    "permission.",
+    "  tick finalized in 50s",
+    "",
+    "  the round said: the page explicitly states the security certificate has expired",
+    "  it quoted:      \"The certificate expired on 2026-01-01.\"",
+    "  keeper balance before 136150666666666666665",
+    "  keeper balance after  136152666666666666665",
+    "  bounty recorded paid  2000000000000000",
+    "",
+    "  ok   the rule fired",
+    "  ok   the whole bounty went to the one waiting rule",
+    "  ok   the badge shows nothing left behind it",
+    "  ok   and the badge still remembers what was put up",
+    "  ok   the coin arrived in an account that is not the creator",
+    "  ok   the token records who was paid",
+    "  ok   and what the round said it was reading when it decided",
+    "",
+    "7 checks. The bounty left the contract and reached the keeper."
+  ]
+}

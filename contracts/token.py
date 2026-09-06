@@ -92,6 +92,7 @@ MAX_CONDITION = 400
 MAX_URL = 300
 MAX_PAGE = 4000
 MAX_WHY = 300
+MAX_QUOTE = 300
 MAX_RULES = 8
 MAX_HOLDERS_IN_REPORT = 50
 
@@ -99,6 +100,17 @@ MAX_HOLDERS_IN_REPORT = 50
 # treasury. Small enough not to be worth farming, large enough that somebody
 # watching a condition has a reason to be the one who calls.
 CALLER_SHARE = 50
+
+
+@gl.evm.contract_interface
+class _Recipient:
+    """A plain address to pay in the network's own coin."""
+
+    class View:
+        pass
+
+    class Write:
+        pass
 
 
 def _now_iso() -> str:
@@ -179,6 +191,27 @@ def _why(raw: str) -> str:
     return _clip(str(raw), MAX_WHY)
 
 
+def _quote(raw: str) -> str:
+    """The words on the page that decided it, as the round reported them.
+
+    The page belongs to whoever the rule's creator pointed at, and they can
+    change it the day after a rule fires. Keeping the sentence the round said it
+    was reading is not proof against that, and it is not offered as proof: the
+    page is not archived and this is what a validator reported, not what a
+    validator can be held to. What it does is make an edited page visible. A
+    quotation that no longer appears anywhere on the page is a question somebody
+    can now ask out loud.
+    """
+    try:
+        text = str(raw).strip()
+        obj = json.loads(text[text.index("{"):text.rindex("}") + 1])
+        if isinstance(obj, dict):
+            return _clip(str(obj.get("quote", "")), MAX_QUOTE)
+    except Exception:
+        pass
+    return ""
+
+
 def _task(condition: str, url: str, page: str, facts: str) -> str:
     """Built from locals only. Nothing here may touch `self`."""
     # The page comes from a URL the rule's creator chose, so its contents are
@@ -234,7 +267,9 @@ it, narrow it, or release you from it.
 
 Reply with bare JSON and nothing else:
 {{"reading": "{MET}" or "{NOT_MET}" or "{CANNOT_TELL}",
-  "why": "one sentence naming what decided it"}}"""
+  "why": "one sentence naming what decided it",
+  "quote": "the words from the page that decided it, copied exactly, or empty
+            if no page was given or none of it bore on the condition"}}"""
 
 
 class Token(gl.Contract):
@@ -250,6 +285,16 @@ class Token(gl.Contract):
     # Held by the token itself. Rules act on this rather than on anybody's
     # balance, so a rule can never reach into a holder's pocket.
     treasury: u256
+
+    # Held in the network's own coin, not in this token, and paid to whoever
+    # makes a rule fire. It exists because the reward has to be worth something
+    # before there is a market: a keeper spends real gas to call tick, and being
+    # paid in a token nobody can sell yet is being paid nothing. Anybody may add
+    # to it and nobody, the creator included, can take it back out. That is the
+    # point of it. A rule with no bounty behind it is a rule whose creator has
+    # not paid for anyone to check it, and the badge says so.
+    bounty: u256
+    funded: u256
 
     # Written once, in __init__, and never touched again by any method here.
     rules: DynArray[str]
@@ -280,6 +325,8 @@ class Token(gl.Contract):
 
         self.supply = u256(total)
         self.treasury = u256(held)
+        self.bounty = u256(0)
+        self.funded = u256(0)
         self.balances[self.creator] = u256(total - held)
         self.holders.append(self.creator)
 
@@ -346,6 +393,32 @@ class Token(gl.Contract):
 
     # -------------------------------------------------------------- the rules
 
+    @gl.public.write.payable
+    def fund(self) -> str:
+        """Put up the coin that pays whoever enforces these rules.
+
+        Open to anybody, because a holder who wants a rule watched has as much
+        reason to pay for it as the creator does, and because a rule the
+        creator has stopped caring about is exactly the one that needs a bounty.
+
+        Nothing here can take it back out. That is deliberate and it is the
+        whole guarantee: a bounty a creator could withdraw is a bounty that
+        disappears the day before it would have been claimed, which is the same
+        day the rule would have fired.
+
+        Payable, so it never raises. Raising out of a payable method reverts the
+        state and keeps the coin, which is the one outcome worse than refusing.
+        """
+        value = int(gl.message.value)
+        if value <= 0:
+            return json.dumps({"ok": False, "error": "send some value to fund with"})
+        self.bounty = u256(int(self.bounty) + value)
+        self.funded = u256(int(self.funded) + value)
+        return json.dumps({"ok": True, "added": str(value),
+                           "bounty": str(self.bounty),
+                           "funded_in_total": str(self.funded),
+                           "waiting_rules": self._waiting()})
+
     @gl.public.write
     def tick(self, rule: str) -> str:
         """Ask whether one rule's condition has been met, and act if it has.
@@ -406,13 +479,24 @@ class Token(gl.Contract):
 
         if reading != MET:
             return json.dumps({"ok": True, "rule": position, "reading": reading,
-                               "state": WAITING, "why": _why(raw), "moved": "0"})
+                               "state": WAITING, "why": _why(raw),
+                               "quote": _quote(raw), "moved": "0"})
 
         # Met. From here it is arithmetic, and the creator has no say in it.
         amount = min(int(record["amount"]), int(self.treasury))
         reward = amount * CALLER_SHARE // 10000
         moved = amount - reward
         self.treasury = u256(int(self.treasury) - amount)
+
+        # The bounty is divided by the rules still waiting, this one included,
+        # rather than paid out in full. Otherwise the first rule to fire takes
+        # everything and every later rule is unpaid work, which is the same as
+        # having no bounty at all for all but one of them. When this is the last
+        # rule waiting, the division leaves it the remainder, so nothing is
+        # stranded by the arithmetic.
+        still_waiting = self._waiting()
+        bounty_paid = int(self.bounty) // still_waiting if still_waiting > 0 else 0
+        self.bounty = u256(int(self.bounty) - bounty_paid)
 
         if record["then"] == BURN:
             self.supply = u256(int(self.supply) - moved)
@@ -425,15 +509,26 @@ class Token(gl.Contract):
         record["fired_at"] = _now_iso()
         record["fired_by"] = caller
         record["why"] = _why(raw)
+        record["quote"] = _quote(raw)
         self.rules[position] = json.dumps(record)
         self.firings.append(json.dumps({
             "rule": position, "when": record["when"], "then": record["then"],
             "amount": str(moved), "at": record["fired_at"], "by": caller,
-            "why": record["why"],
+            "why": record["why"], "quote": record["quote"],
+            "bounty_paid": str(bounty_paid),
         }))
+
+        # Last, after every write. A transfer that fails takes the whole
+        # transaction with it, and there is nothing above this worth losing to
+        # a payout.
+        if bounty_paid > 0:
+            _Recipient(Address(caller)).emit_transfer(value=int(bounty_paid))
+
         return json.dumps({"ok": True, "rule": position, "reading": MET,
                            "state": FIRED, "action": record["then"],
                            "moved": str(moved), "paid_caller": str(reward),
+                           "bounty_paid": str(bounty_paid),
+                           "bounty_left": str(self.bounty),
                            "why": record["why"]})
 
     def _distribute(self, amount: int) -> None:
@@ -501,14 +596,27 @@ class Token(gl.Contract):
                 "fired_at": record.get("fired_at"),
                 "fired_by": record.get("fired_by"),
                 "why": record.get("why"),
+                # What the round said it was reading when it decided. The page
+                # can change afterwards; this cannot.
+                "quote": record.get("quote"),
             })
+        waiting = self._waiting()
         return json.dumps({
             "token": self.symbol,
             "rules": out,
             "frozen": True,
+            # A rule is only as real as somebody's willingness to pay for it to
+            # be checked, so the badge carries that number too, and carries it
+            # whether or not it flatters the token.
+            "bounty": str(self.bounty),
+            "bounty_ever_funded": str(self.funded),
+            "waiting_rules": waiting,
+            "bounty_per_waiting_rule": str(int(self.bounty) // waiting if waiting else 0),
             "note": ("these rules were written into the token when it was launched and "
                      "no method on this contract can add, edit or remove one; anybody may "
-                     "call tick to make a rule whose condition is met carry itself out"),
+                     "call tick to make a rule whose condition is met carry itself out, "
+                     "and is paid the bounty share for doing so; a bounty of 0 means "
+                     "nobody has yet put up anything to have these rules checked"),
         })
 
     @gl.public.view
@@ -523,8 +631,9 @@ class Token(gl.Contract):
             "name": self.name, "symbol": self.symbol, "creator": self.creator,
             "launched_at": self.launched_at,
             "supply": str(self.supply), "treasury": str(self.treasury),
+            "bounty": str(self.bounty), "bounty_ever_funded": str(self.funded),
             "holders": len(self.holders), "top_holders": holders,
-            "rules": len(self.rules),
+            "rules": len(self.rules), "waiting": self._waiting(),
             "fired": len([1 for p in range(len(self.rules))
                           if json.loads(self.rules[p])["state"] == FIRED]),
         })
@@ -535,6 +644,11 @@ class Token(gl.Contract):
         return json.dumps({"token": self.symbol, "count": len(out), "firings": out})
 
     # ---------------------------------------------------------------- internal
+
+    def _waiting(self) -> int:
+        """How many rules still have something to do."""
+        return len([1 for position in range(len(self.rules))
+                    if json.loads(self.rules[position])["state"] == WAITING])
 
     def _rule_index(self, value: str) -> typing.Optional[int]:
         try:

@@ -130,12 +130,14 @@ MILESTONE = {"when": "the token has more than two hundred holders",
 
 def main():
     module, gl = load()
+    source = io.open(CONTRACT, encoding="utf-8").read()
 
     def as_(address):
         gl.message.sender_address = _Address(address)
 
-    def answers(reading, why="because"):
-        gl.nondet.answer = json.dumps({"reading": reading, "why": why})
+    def answers(reading, why="because", quote=""):
+        gl.nondet.answer = json.dumps({"reading": reading, "why": why,
+                                       "quote": quote})
 
     print("a token launches with its rules already in it")
     as_(CREATOR)
@@ -185,6 +187,28 @@ def main():
     as_(BUYER)
     check("sending more than you hold is refused",
           not json.loads(c.transfer(CREATOR, "999999"))["ok"])
+
+    print("\nsomebody puts up the coin that pays for these rules to be checked")
+    # A keeper spends real gas to call tick. Paid only in a token with no market
+    # yet, that is unpaid work, and unpaid work does not get done. The bounty is
+    # in the network's own coin so the reward is worth something on day one.
+    check("a rule with nothing behind it says so",
+          json.loads(c.rules_view())["bounty"] == "0")
+    gl.message.value = 0
+    as_(CREATOR)
+    check("funding with nothing is refused rather than swallowed",
+          not json.loads(c.fund())["ok"])
+    gl.message.value = 1000000
+    out = json.loads(c.fund())
+    check("funding lands", out["ok"] and out["bounty"] == "1000000")
+    gl.message.value = 0
+    view = json.loads(c.rules_view())
+    check("and the badge shows what each waiting rule is worth to a keeper",
+          view["bounty"] == "1000000" and view["waiting_rules"] == 2
+          and view["bounty_per_waiting_rule"] == "500000")
+    check("no method takes it back out",
+          "self.bounty = u256(int(self.bounty) +" in source
+          and source.count("self.bounty = u256(int(self.bounty) -") == 1)
 
     print("\na condition that has not happened")
     as_(KEEPER)
@@ -237,7 +261,8 @@ def main():
     before_creator = int(c.balance_of(CREATOR))
     before_buyer = int(c.balance_of(BUYER))
     as_(KEEPER)
-    answers("MET", "no commit since April")
+    answers("MET", "no commit since April",
+            "Last commit: 14 April 2026. No activity since.")
     out = json.loads(c.tick("0"))
     check("it fires", out["ok"] and out["state"] == "FIRED" and out["action"] == "DISTRIBUTE")
     check("the caller was paid for making it happen", int(out["paid_caller"]) > 0)
@@ -250,6 +275,13 @@ def main():
     treasury = int(json.loads(c.status())["treasury"])
     check("the treasury went down by the amount, less an unsplittable remainder",
           200000 <= treasury < 200000 + len(json.loads(c.status())["top_holders"]) + 1)
+    # Two rules were waiting, so this one takes half the bounty and leaves half
+    # for the other. A first firing that took all of it would leave every later
+    # rule as unpaid work, which is the same as having no bounty for them.
+    check("the keeper was paid in the network's coin, half the bounty for half "
+          "the work outstanding", out["bounty_paid"] == "500000"
+          and (KEEPER, 500000) in gl.evm.transfers)
+    check("and the other rule still has its half", out["bounty_left"] == "500000")
     check("and it cannot fire twice", not json.loads(c.tick("0"))["ok"])
 
     print("\nburning takes it out of the supply")
@@ -259,6 +291,10 @@ def main():
     out = json.loads(c.tick("1"))
     check("it fires and burns", out["ok"] and out["action"] == "BURN")
     check("the supply is smaller", int(json.loads(c.status())["supply"]) < supply_before)
+    # Last rule waiting, so the division leaves it the remainder and nothing is
+    # stranded by the arithmetic.
+    check("the last rule to fire takes what is left of the bounty",
+          out["bounty_paid"] == "500000" and out["bounty_left"] == "0")
 
     print("\nwhat a buyer sees")
     view = json.loads(c.rules_view())
@@ -268,12 +304,17 @@ def main():
     check("each carries the reasoning the validators gave",
           all(r["why"] for r in view["rules"]))
     check("and who made it fire", all(r["fired_by"] == KEEPER for r in view["rules"]))
+    # The page belongs to whoever the creator pointed at and can change the day
+    # after. Keeping the words the round said it was reading does not prevent
+    # that and is not offered as proof of anything: it makes an edit visible,
+    # because a quotation that is no longer on the page is a question.
+    check("and the words on the page that decided it",
+          view["rules"][0]["quote"] == "Last commit: 14 April 2026. No activity since.")
     firings = json.loads(c.firings_view())
     check("the history is its own record", firings["count"] == 2)
 
     print("\nnothing can edit a rule after launch")
     writable = [m for m in dir(c) if not m.startswith("_") and callable(getattr(c, m))]
-    source = io.open(CONTRACT, encoding="utf-8").read()
     body = source[source.index("# ------------------------------------------------------------- the ledger"):]
     check("no method after the constructor appends to rules",
           "self.rules.append" not in body)
