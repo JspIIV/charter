@@ -1,0 +1,144 @@
+{
+  "proved_at": "2026-09-06T17:37:47.531Z",
+  "genlayer": {
+    "chain": "studionet",
+    "token": "0x150196EBBD52851e75Fe2AeEc2dF6d5e6183A688",
+    "verdict": {
+      "index": 0,
+      "when": "the page states that a security certificate has expired",
+      "checked_against": "https://gist.githubusercontent.com/JspIIV/2ff5af1cd421395420c9ec33b9ecbebf/raw/claim_false.txt",
+      "then": "BURN",
+      "amount": "40000",
+      "state": "FIRED",
+      "fired_at": "2026-09-06T17:36:46.059130+00:00",
+      "fired_by": "0x0b57877ec84d96b672cd47d8ea4424283fdb9f6c",
+      "why": "The page explicitly states that a security certificate has expired, even though it characterizes the claim as false.",
+      "quote": "The certificate expired on 2026-01-01."
+    },
+    "rounds_needed": 2
+  },
+  "evm": {
+    "chain": "base sepolia",
+    "token": "0x8EBa660BE22347E06EBD0aD70Acbd1aD0C68858D",
+    "supply_before": "1000000",
+    "supply_after": "960000",
+    "treasury_after": "260000",
+    "creator_holds": "699000",
+    "fire_tx": "0xb1a8f6baff00f6c5a2aaedbb64fb46b7f44bfdef19bca2c457c1f833a020f2d7",
+    "fire_block": 46473986,
+    "gas_used": "250204"
+  },
+  "carrier": "0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+  "carrier_bounds": {
+    "second_firing": "refused: execution reverted (unknown custom error)",
+    "from_an_outsider": "refused: execution reverted (unknown custom error)"
+  },
+  "caveat": "the carrier can deliver a firing genlayer has not made; it cannot choose an amount or a destination, and the genlayer side is public so a false delivery is checkable by anybody",
+  "checks": [
+    {
+      "label": "genlayer reached a verdict",
+      "ok": true
+    },
+    {
+      "label": "the erc20 agrees the rule fired",
+      "ok": true
+    },
+    {
+      "label": "the burn landed on the erc20, for the amount written at deployment",
+      "ok": true
+    },
+    {
+      "label": "the treasury paid for it",
+      "ok": true
+    },
+    {
+      "label": "no holder lost anything, the burn came out of the treasury",
+      "ok": true
+    },
+    {
+      "label": "the reasoning crossed with it",
+      "ok": true
+    },
+    {
+      "label": "and the words the round quoted",
+      "ok": true
+    },
+    {
+      "label": "the erc20 names the genlayer contract it answers to",
+      "ok": true
+    },
+    {
+      "label": "a second firing is refused",
+      "ok": true
+    },
+    {
+      "label": "a firing from anybody but the carrier is refused",
+      "ok": true
+    },
+    {
+      "label": "and it is an ordinary erc20 throughout",
+      "ok": true
+    }
+  ],
+  "transcript": [
+    "charter.fun across two chains.",
+    "",
+    "  judgement on  GenLayer Studionet",
+    "  money on      Base Sepolia",
+    "  creator       0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+    "  carrier       0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+    "  outsider      0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "",
+    "Deploying the rules on GenLayer.",
+    "  genlayer token 0x150196EBBD52851e75Fe2AeEc2dF6d5e6183A688",
+    "",
+    "Deploying the ERC-20 on Base Sepolia, with the same rules and their",
+    "amounts fixed in it. The carrier never supplies an amount.",
+    "  erc20 0x8EBa660BE22347E06EBD0aD70Acbd1aD0C68858D",
+    "  waiting for the erc20 to be visible to the rpc",
+    "  supply 1000000, treasury 300000, creator holds 700000",
+    "",
+    "Funding the bounty and letting somebody who is not the creator call tick.",
+    "  fund finalized in 38s",
+    "  tick 1 finalized in 50s",
+    "  genlayer says WAITING",
+    "  the round did not settle it this time; asking again",
+    "  tick 2 finalized in 50s",
+    "  genlayer says FIRED",
+    "  because       The page explicitly states that a security certificate has expired, even though it characterizes the claim as false.",
+    "  quoting       \"The certificate expired on 2026-01-01.\"",
+    "  it took       2 round(s)",
+    "",
+    "The carrier reads that off GenLayer and delivers it. It sends a rule index",
+    "and the words the round used. Nothing else.",
+    "  fire mined in block 46473986, 250204 gas",
+    "  waiting for the rpc to catch up with the firing",
+    "",
+    "  supply   1000000 -> 960000",
+    "  treasury 260000",
+    "  rule 0   fired=true why=\"The page explicitly states that a security certificate has expired, even though it characterizes the claim as false.\"",
+    "",
+    "What the carrier cannot do, tried rather than asserted.",
+    "  firing the same rule twice: refused: execution reverted (unknown custom error)",
+    "  firing from an address that is not the carrier: refused: execution reverted (unknown custom error)",
+    "",
+    "And it is an ordinary token while all this is happening.",
+    "  transferred 1000 to 0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "  waiting for the rpc to catch up with the transfer",
+    "",
+    "  ok   genlayer reached a verdict",
+    "  ok   the erc20 agrees the rule fired",
+    "  ok   the burn landed on the erc20, for the amount written at deployment",
+    "  ok   the treasury paid for it",
+    "  ok   no holder lost anything, the burn came out of the treasury",
+    "  ok   the reasoning crossed with it",
+    "  ok   and the words the round quoted",
+    "  ok   the erc20 names the genlayer contract it answers to",
+    "  ok   a second firing is refused",
+    "  ok   a firing from anybody but the carrier is refused",
+    "  ok   and it is an ordinary erc20 throughout",
+    "",
+    "11 checks. The verdict was made where it could be, and landed",
+    "where the money is."
+  ]
+}

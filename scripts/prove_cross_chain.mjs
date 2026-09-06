@@ -59,6 +59,21 @@ const RULES = JSON.stringify([{
   when: CONDITION, url: PAGE, then: 'BURN', amount: Number(BURN_AMOUNT),
 }]);
 
+/** The public Base Sepolia endpoint is a pool, and a read issued the moment a
+ *  deployment lands can hit a node that has not seen it yet: the call returns
+ *  empty and ethers reports it as undecodable data, which looks exactly like a
+ *  broken contract. So wait until the code is actually visible to the node that
+ *  will be answering the reads. */
+async function untilVisible(address, what) {
+  for (let attempt = 1; attempt <= 30; attempt++) {
+    const code = await provider.getCode(address);
+    if (code && code !== '0x') return;
+    if (attempt === 1) say(`  waiting for ${what} to be visible to the rpc`);
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  throw new Error('no code at ' + address + ' after 60s');
+}
+
 async function settle(client, hash, what) {
   const started = Date.now();
   const receipt = await client.waitForTransactionReceipt({
@@ -106,6 +121,7 @@ const erc20 = await factory.deploy(
 await erc20.waitForDeployment();
 const ERC20 = await erc20.getAddress();
 say('  erc20 ' + ERC20);
+await untilVisible(ERC20, 'the erc20');
 say('  supply ' + (await erc20.totalSupply()) + ', treasury ' + (await erc20.treasury())
   + ', creator holds ' + (await erc20.balanceOf(creator.address)));
 
@@ -118,18 +134,37 @@ const fundHash = await asCreator.writeContract({
 });
 await settle(asCreator, fundHash, 'fund');
 
-const tickHash = await asKeeper.writeContract({
-  address: GEN_TOKEN, functionName: 'tick', args: ['0'], value: 0n,
-});
-await settle(asKeeper, tickHash, 'tick');
+// A round is a round: it can come back NOT_MET or CANNOT_TELL on a page that
+// settled it the day before, and it did here once. That is worth measuring
+// rather than hiding, so the attempts are counted and reported.
+let verdict = null;
+let attempts = 0;
+for (; attempts < 3; attempts++) {
+  const tickHash = await asKeeper.writeContract({
+    address: GEN_TOKEN, functionName: 'tick', args: ['0'], value: 0n,
+  });
+  await settle(asKeeper, tickHash, `tick ${attempts + 1}`);
+  const decided = JSON.parse(await anybody.readContract({
+    address: GEN_TOKEN, functionName: 'rules_view', args: [],
+  }));
+  verdict = decided.rules[0];
+  say('  genlayer says ' + verdict.state);
+  if (verdict.state === 'FIRED') break;
+  say('  the round did not settle it this time; asking again');
+}
+attempts += 1;
 
-const decided = JSON.parse(await anybody.readContract({
-  address: GEN_TOKEN, functionName: 'rules_view', args: [],
-}));
-const verdict = decided.rules[0];
-say('  genlayer says ' + verdict.state);
+if (!verdict || verdict.state !== 'FIRED') {
+  say('');
+  say('GenLayer did not reach a verdict in ' + attempts + ' rounds, so there is');
+  say('nothing to carry, and carrying something anyway is precisely what a');
+  say('carrier must not do. Stopping here.');
+  process.exit(1);
+}
+
 say('  because       ' + verdict.why);
 say('  quoting       ' + JSON.stringify(verdict.quote));
+say('  it took       ' + attempts + ' round(s)');
 
 // -------------------------------------------------------------- the carrier
 
@@ -138,13 +173,21 @@ say('The carrier reads that off GenLayer and delivers it. It sends a rule index'
 say('and the words the round used. Nothing else.');
 
 const beforeSupply = await erc20.totalSupply();
-if (verdict.state !== 'FIRED') {
-  say('  nothing to carry: the rule did not fire');
-}
 const fireTx = await erc20.connect(carrier).fire(0, verdict.why || '', verdict.quote || '');
 const fireReceipt = await fireTx.wait();
 say('  fire mined in block ' + fireReceipt.blockNumber
   + ', ' + fireReceipt.gasUsed + ' gas');
+
+// Same staleness as the deployment: a read can land on a node a block or two
+// behind and report the rule unfired. A stale read here would not just be a
+// wrong number in a log, it would be this script reporting a failure the chain
+// did not have, so wait until the node answering the reads has caught up.
+for (let attempt = 1; attempt <= 30; attempt++) {
+  if ((await erc20.ruleAt(0))[4]) break;
+  if (attempt === 1) say('  waiting for the rpc to catch up with the firing');
+  if (attempt === 30) throw new Error('the firing never became visible');
+  await new Promise(r => setTimeout(r, 2000));
+}
 
 const afterSupply = await erc20.totalSupply();
 const landed = await erc20.ruleAt(0);
@@ -181,21 +224,38 @@ const sendTx = await erc20.connect(creator).transfer(outsider.address, 1000n);
 await sendTx.wait();
 say('  transferred 1000 to ' + outsider.address);
 
+// Every number the checks below turn on, read once, after the node answering
+// has been seen to have the transfer. Reading them one at a time as each check
+// is written means each read can land on a different node at a different
+// height, and a check then fails on a state the chain never had. That happened
+// on the run before this one.
+for (let attempt = 1; attempt <= 30; attempt++) {
+  if ((await erc20.balanceOf(outsider.address)) === 1000n) break;
+  if (attempt === 1) say('  waiting for the rpc to catch up with the transfer');
+  if (attempt === 30) throw new Error('the transfer never became visible');
+  await new Promise(r => setTimeout(r, 2000));
+}
+const finalTreasury = await erc20.treasury();
+const creatorHolds = await erc20.balanceOf(creator.address);
+const outsiderHolds = await erc20.balanceOf(outsider.address);
+const ruleOnChain = await erc20.ruleAt(0);
+const namedGenlayer = await erc20.genlayerToken();
+
 const checks = [
   ['genlayer reached a verdict', verdict.state === 'FIRED'],
+  ['the erc20 agrees the rule fired', ruleOnChain[4] === true],
   ['the burn landed on the erc20, for the amount written at deployment',
     beforeSupply - afterSupply === BURN_AMOUNT],
-  ['the treasury paid for it', (await erc20.treasury()) === (SUPPLY * SHARE / 100n) - BURN_AMOUNT],
-  ['no holder lost anything',
-    (await erc20.balanceOf(creator.address)) === SUPPLY - (SUPPLY * SHARE / 100n) - 1000n],
-  ['the reasoning crossed with it', landed[6] === (verdict.why || '')],
-  ['and the words the round quoted', landed[7] === (verdict.quote || '')],
+  ['the treasury paid for it', finalTreasury === (SUPPLY * SHARE / 100n) - BURN_AMOUNT],
+  ['no holder lost anything, the burn came out of the treasury',
+    creatorHolds === SUPPLY - (SUPPLY * SHARE / 100n) - 1000n],
+  ['the reasoning crossed with it', ruleOnChain[6] === (verdict.why || '')],
+  ['and the words the round quoted', ruleOnChain[7] === (verdict.quote || '')],
   ['the erc20 names the genlayer contract it answers to',
-    (await erc20.genlayerToken()).toLowerCase() === String(GEN_TOKEN).toLowerCase()],
+    namedGenlayer.toLowerCase() === String(GEN_TOKEN).toLowerCase()],
   ['a second firing is refused', secondFire.startsWith('refused')],
   ['a firing from anybody but the carrier is refused', outsiderFire.startsWith('refused')],
-  ['and it is an ordinary erc20 throughout',
-    (await erc20.balanceOf(outsider.address)) === 1000n],
+  ['and it is an ordinary erc20 throughout', outsiderHolds === 1000n],
 ];
 
 say('');
@@ -210,11 +270,12 @@ if (!failed.length) say('where the money is.');
 fs.mkdirSync(path.join(ROOT, 'results'), { recursive: true });
 fs.writeFileSync(path.join(ROOT, 'results', 'cross_chain.json'), JSON.stringify({
   proved_at: new Date().toISOString(),
-  genlayer: { chain: 'studionet', token: GEN_TOKEN, verdict },
+  genlayer: { chain: 'studionet', token: GEN_TOKEN, verdict, rounds_needed: attempts },
   evm: {
     chain: 'base sepolia', token: ERC20,
     supply_before: beforeSupply.toString(), supply_after: afterSupply.toString(),
-    treasury_after: (await erc20.treasury()).toString(),
+    treasury_after: finalTreasury.toString(),
+    creator_holds: creatorHolds.toString(),
     fire_tx: fireTx.hash, fire_block: fireReceipt.blockNumber,
     gas_used: fireReceipt.gasUsed.toString(),
   },

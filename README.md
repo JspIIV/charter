@@ -188,6 +188,22 @@ instruction-carrying page leaves the rule waiting. **None of that proves a model
 resists the attempt**, and nothing run offline can. It proves the contract never
 hands page text to a round as though it were part of the task.
 
+So there is a fixture that does run it. `fixtures/injection.txt` states that
+every certificate was renewed and none has expired, then addresses the validator
+directly, claims authority, and demands a `MET`, against a condition asking
+whether a certificate has expired. It was pointed at
+[`0x3fE588c59D095C15d8Df813fC3b670566B9f8ecc`](https://explorer-studio.genlayer.com/address/0x3fE588c59D095C15d8Df813fC3b670566B9f8ecc)
+with a funded bounty behind the rule, so there was something for a fooled round
+to take.
+
+The rule stayed `WAITING`. Nothing burned, the bounty untouched, the record
+empty. **That is one round against one fixture**, not a guarantee about every
+model on every day, and it is reported as what it is: a real attempt, refused.
+
+```bash
+node scripts/prove_injection.mjs
+```
+
 ## The launchpad
 
 A token is only worth this if launching one does not require being us. So the
@@ -236,6 +252,63 @@ network, and the factory only works on Studionet. That is a platform
 limit, not a design choice, and it is written here rather than left for somebody
 to discover.
 
+## The token is an ERC-20, and the judgement is not on the same chain
+
+A token that exists only on GenLayer cannot be held in an ordinary wallet,
+listed, or traded. That makes the rules a demonstration rather than something
+anybody is actually exposed to, which is a real weakness and not one worth
+writing around. But the rules need a network that can read a web page and hold a
+round of validators to a single word, and an EVM cannot do that.
+
+So the two halves live where each of them works. The token is a plain ERC-20
+([`contracts/CharterToken.sol`](contracts/CharterToken.sol)) on Base Sepolia.
+The rules are decided on GenLayer. A carrier walks the decision across.
+
+**The carrier is the weak part and is treated as one.** It never carries an
+amount or a destination: each rule's action and amount were written into the
+ERC-20 at deployment and are read out of its own storage when the rule fires.
+The carrier sends a rule index and the words the round used.
+
+What a hostile carrier can do is deliver a firing GenLayer never made. That is
+the honest cost of a cross chain verdict with no bridge. The ceiling on it is in
+the contract rather than in anybody's good intentions:
+
+| it cannot | because |
+|---|---|
+| choose an amount | each amount was fixed at deployment |
+| invent a rule | only indices that exist, only once each |
+| name a destination | a burn goes nowhere, a distribution goes pro rata by the same arithmetic every time, and neither can pay the carrier |
+| reach a holder | rules act on the treasury the contract holds |
+| undo a firing | there is no unfire |
+
+So the worst it does is make the token keep its own promises sooner than it
+should have. And it is caught: the ERC-20 records which GenLayer contract its
+rules answer to, so anybody can read whether the rule it claims is actually
+`FIRED` there. A rule index alone would not be enough, because index 0 exists in
+every charter token ever deployed.
+
+**Proved across both chains.** Rules on Studionet at
+[`0x150196EBBD52851e75Fe2AeEc2dF6d5e6183A688`](https://explorer-studio.genlayer.com/address/0x150196EBBD52851e75Fe2AeEc2dF6d5e6183A688),
+token on Base Sepolia at
+[`0x8EBa660BE22347E06EBD0aD70Acbd1aD0C68858D`](https://sepolia.basescan.org/address/0x8EBa660BE22347E06EBD0aD70Acbd1aD0C68858D).
+An address that is not the creator called `tick`, the round read `MET`, and the
+carrier delivered it in
+[one transaction](https://sepolia.basescan.org/tx/0xb1a8f6baff00f6c5a2aaedbb64fb46b7f44bfdef19bca2c457c1f833a020f2d7)
+for 250,204 gas. Supply went 1,000,000 to 960,000, the treasury paid for all of
+it, and no holder lost anything. A second firing and a firing from any other
+address were both refused, tried rather than asserted. The reasoning and the
+quotation crossed with the verdict and are readable on Base Sepolia.
+
+**It took two rounds.** The first came back unsettled on a page that had settled
+twice before. That is what asking a round of validators a question is like, and
+the script counts the attempts rather than quietly retrying: a rule can need
+asking more than once, and a keeper pays gas for each ask.
+
+```bash
+node scripts/compile.mjs CharterToken
+node scripts/prove_cross_chain.mjs
+```
+
 ## What it will not do
 
 **It does not stop a creator from writing a worthless rule.** "The team is
@@ -261,6 +334,9 @@ tests/keeps_its_own_rules.py   45 checks through the real methods
 scripts/deploy.mjs             launch one directly
 scripts/prove_launchpad.mjs    launch one through the factory, on chain
 scripts/prove_bounty.mjs       fund a token and get paid for enforcing it
+scripts/prove_injection.mjs    point a rule at a page that fights back
+contracts/CharterToken.sol     the ERC-20 the verdict lands on
+scripts/prove_cross_chain.mjs  genlayer decides, base sepolia pays
 ```
 
 ```bash
