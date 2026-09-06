@@ -104,6 +104,54 @@ from 1,000,000 to 920,400.
 
 The creator did not sign anything, was not asked, and could not have stopped it.
 
+## The launchpad
+
+A token is only worth this if launching one does not require being us. So the
+factory is a contract too, and anybody can call it:
+
+```
+launch(name, symbol, supply, treasury_share, rules_json)
+```
+
+It deploys a fresh contract per token rather than keeping a row in a table. That
+costs a deployment each time and it is the point: a token that is its own
+contract can be held, read and called by anything, and its rules cannot be
+reached by whatever else the registry is doing. A launchpad that owned every
+token it ever made would be exactly the single point of control these tokens
+exist to avoid.
+
+The factory is the sender when it deploys, so the creator is passed through
+explicitly. Nothing follows from that field, which is why it can be trusted to
+whoever calls `launch`: a creator cannot edit a rule, stop a tick, or take
+anything back.
+
+**Proved on Studionet.** The launchpad at
+[`0x4d085A5C404362E07f93456E24EE03803b9Df94c`](https://explorer-studio.genlayer.com/address/0x4d085A5C404362E07f93456E24EE03803b9Df94c)
+was deployed by `0x8051...6258`. A different address, `0x0b57...9F6C`, then
+called `launch` and got
+[`0x3A3e43180FAa10529347A7C8d897Bf32014C2C2D`](https://explorer-studio.genlayer.com/address/0x3A3e43180FAa10529347A7C8d897Bf32014C2C2D):
+1,000,000 supply, 300,000 held back as treasury, 700,000 to the caller and none
+to the factory, and its rule frozen and `WAITING`. Deploy and launch each
+finalized in 38 seconds. Read back afterwards with no account at all.
+
+```bash
+node scripts/prove_launchpad.mjs
+```
+
+**The factory carries a copy of the token, so the copy is generated, not
+pasted.** `contracts/token.py` is the only source; `scripts/build_launchpad.py`
+reads it and writes `contracts/launchpad.py`. The test suite parses the
+generated file and fails if the embedded source is not byte for byte the source
+it just tested, because the copy that drifts is the one that actually gets
+deployed.
+
+**It does not work on testnet yet.** `gl.deploy_contract` is a Studio-side
+feature; on Bradbury it currently fails (genvm-manager issue 20). Until that
+lands, a token can be deployed directly from `scripts/deploy.mjs` on either
+network, and the factory only works on Studionet. That is a platform
+limit, not a design choice, and it is written here rather than left for somebody
+to discover.
+
 ## What it will not do
 
 **It does not stop a creator from writing a worthless rule.** "The team is
@@ -123,8 +171,11 @@ itself with arithmetic.
 
 ```
 contracts/token.py             the token, its rules, and tick
-tests/keeps_its_own_rules.py   29 checks through the real methods
-scripts/deploy.mjs             launch one
+contracts/launchpad.py         the factory (generated, do not edit)
+scripts/build_launchpad.py     generates it from token.py
+tests/keeps_its_own_rules.py   32 checks through the real methods
+scripts/deploy.mjs             launch one directly
+scripts/prove_launchpad.mjs    launch one through the factory, on chain
 ```
 
 ```bash

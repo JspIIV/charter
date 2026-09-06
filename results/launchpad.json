@@ -1,0 +1,92 @@
+{
+  "proved_at": "2026-09-06T16:52:15.201Z",
+  "chain": "genlayer studionet",
+  "launchpad": "0x4d085A5C404362E07f93456E24EE03803b9Df94c",
+  "token": "0x3A3e43180FAa10529347A7C8d897Bf32014C2C2D",
+  "launched_by": "0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+  "factory_owner": "0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+  "status": {
+    "name": "Charter Coin",
+    "symbol": "CHRT",
+    "creator": "0x0b57877ec84d96b672cd47d8ea4424283fdb9f6c",
+    "launched_at": "2026-09-06T16:50:39.873533+00:00",
+    "supply": "1000000",
+    "treasury": "300000",
+    "holders": 1,
+    "top_holders": [
+      {
+        "who": "0x0b57877ec84d96b672cd47d8ea4424283fdb9f6c",
+        "holds": "700000"
+      }
+    ],
+    "rules": 1,
+    "fired": 0
+  },
+  "rules": {
+    "token": "CHRT",
+    "rules": [
+      {
+        "index": 0,
+        "when": "the page states that a security certificate has expired",
+        "checked_against": "https://expired.badssl.com/",
+        "then": "BURN",
+        "amount": "40000",
+        "state": "WAITING",
+        "fired_at": null,
+        "fired_by": null,
+        "why": null
+      }
+    ],
+    "frozen": true,
+    "note": "these rules were written into the token when it was launched and no method on this contract can add, edit or remove one; anybody may call tick to make a rule whose condition is met carry itself out"
+  },
+  "checks": [
+    {
+      "label": "the launchpad deployed a real contract",
+      "ok": true
+    },
+    {
+      "label": "the token names the stranger as creator, not the factory",
+      "ok": true
+    },
+    {
+      "label": "the stranger holds the supply, less the treasury",
+      "ok": true
+    },
+    {
+      "label": "the treasury is what was asked for",
+      "ok": true
+    },
+    {
+      "label": "the rule arrived intact",
+      "ok": true
+    },
+    {
+      "label": "and it is frozen",
+      "ok": true
+    },
+    {
+      "label": "and waiting, not quietly fired",
+      "ok": true
+    }
+  ],
+  "transcript": [
+    "charter.fun launchpad, on GenLayer Studionet.",
+    "",
+    "  factory owner  0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+    "  launching as   0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "",
+    "Reusing an existing launchpad and token; reading only.",
+    "Reading the token itself, with no account and no help from us.",
+    "",
+    "  ok   the launchpad deployed a real contract",
+    "  ok   the token names the stranger as creator, not the factory",
+    "  ok   the stranger holds the supply, less the treasury",
+    "  ok   the treasury is what was asked for",
+    "  ok   the rule arrived intact",
+    "  ok   and it is frozen",
+    "  ok   and waiting, not quietly fired",
+    "",
+    "7 checks. A stranger got the token this repository tests."
+  ]
+}

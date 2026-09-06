@@ -237,10 +237,16 @@ class Token(gl.Contract):
     firings: DynArray[str]
 
     def __init__(self, name: str, symbol: str, supply: str,
-                 treasury_share: str, rules_json: str) -> None:
+                 treasury_share: str, rules_json: str, creator: str) -> None:
         self.name = _clip(str(name), 60)
         self.symbol = _clip(str(symbol), 12).upper()
-        self.creator = _addr(gl.message.sender_address.as_hex)
+        # Passed in rather than taken from the sender, because a launchpad
+        # deploying this on somebody's behalf is the sender and the person who
+        # launched it is not. The creator has no powers here at all: they cannot
+        # edit a rule, cannot stop a tick, and cannot take anything back. The
+        # field says who launched it and nothing follows from it, so there is
+        # nothing to gain by putting somebody else's address in.
+        self.creator = _address(creator) or _addr(gl.message.sender_address.as_hex)
         self.launched_at = _now_iso()
 
         total = _whole(supply)

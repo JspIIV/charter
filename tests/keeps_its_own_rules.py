@@ -101,12 +101,12 @@ def load():
     return module, gl
 
 
-def fresh(module, name, symbol, supply, treasury_share, rules):
+def fresh(module, name, symbol, supply, treasury_share, rules, creator=""):
     contract = module.Token.__new__(module.Token)
     for field, declared in module.Token.__annotations__.items():
         if isinstance(declared, _Store):
             setattr(contract, field, declared.make())
-    contract.__init__(name, symbol, supply, treasury_share, json.dumps(rules))
+    contract.__init__(name, symbol, supply, treasury_share, json.dumps(rules), creator)
     return contract
 
 
@@ -147,6 +147,21 @@ def main():
     check("both rules were taken", len(json.loads(c.rules_view())["rules"]) == 2)
     check("and they start waiting",
           all(r["state"] == "WAITING" for r in json.loads(c.rules_view())["rules"]))
+
+    print()
+    print("a launchpad launches on somebody else's behalf")
+    # The factory is the sender when it deploys, so the creator is passed in.
+    # Nothing follows from the field, which is why it can be trusted to whoever
+    # calls launch: there is nothing to gain by putting another address in it.
+    as_("0x9999999999999999999999999999999999999999")
+    behalf = fresh(module, "On Behalf", "obh", "1000", "10", [MILESTONE], CREATOR)
+    check("the named creator holds the supply, not the deployer",
+          behalf.balance_of(CREATOR) == "900"
+          and behalf.balance_of("0x9999999999999999999999999999999999999999") == "0")
+    junkc = fresh(module, "No Creator", "noc", "1000", "10", [MILESTONE], "not-an-address")
+    check("an unusable creator falls back to the sender",
+          json.loads(junkc.status())["creator"]
+          == "0x9999999999999999999999999999999999999999")
 
     print("\nrules a launch will not accept")
     as_(CREATOR)
@@ -238,6 +253,23 @@ def main():
     body = source[source.index("# ------------------------------------------------------------- the ledger"):]
     check("no method after the constructor appends to rules",
           "self.rules.append" not in body)
+
+    print(chr(10) + "the launchpad deploys exactly the token that was tested")
+    import ast as _ast
+    generated = os.path.join(HERE, "..", "contracts", "launchpad.py")
+    if os.path.exists(generated):
+        tree = _ast.parse(io.open(generated, encoding="utf-8").read())
+        embedded = None
+        for node in tree.body:
+            if isinstance(node, _ast.Assign) and getattr(node.targets[0], "id", "") == "TOKEN_SOURCE":
+                embedded = eval(compile(_ast.Expression(node.value), "<embedded>", "eval"))
+        # The factory carries its own copy of the token. If the two ever drift,
+        # the copy that gets deployed is the one nobody read, so this is checked
+        # rather than trusted.
+        check("the source embedded in the launchpad is the source tested here",
+              embedded == io.open(CONTRACT, encoding="utf-8").read())
+    else:
+        check("launchpad not built yet, run scripts/build_launchpad.py", False)
 
     failed = [label for label, ok in RESULTS if not ok]
     print()
