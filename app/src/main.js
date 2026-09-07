@@ -11,6 +11,7 @@
 // and it is enough: several ticks can be in flight at once, each with its own
 // clock, and a re-render draws whatever is true now.
 import { connect, currentAccount, onAccountChange, read, write, short, EXPLORER } from './chain.js';
+import { readToken, BASE_EXPLORER } from './evm.js';
 
 const app = document.getElementById('app');
 
@@ -27,6 +28,9 @@ const state = {
   // so two rules can be in flight at once without either losing its clock.
   busy: {},
   funding: null,
+  // The other half of a charter token: the badges, on the EVM chain, enforced
+  // by ordinary code. Null when the address looked up was not one.
+  evm: null,
 };
 
 const set = (patch) => { Object.assign(state, patch); render(); };
@@ -56,7 +60,17 @@ const when = (iso) => {
 // ---------------------------------------------------------------- loading
 
 async function load(address) {
-  set({ loading: true, error: null, address });
+  set({ loading: true, error: null, address, evm: null, status: null, badge: null });
+
+  // An address is looked up on both chains, because a charter token is two
+  // things and a person holding one address should not have to know which.
+  // The badges are on the EVM side and the judged rules are on GenLayer.
+  try {
+    const evm = await readToken(address);
+    set({ evm, loading: false });
+    return;
+  } catch { /* not an ERC-20 we recognise; try the other chain */ }
+
   try {
     const [status, badge, firings] = await Promise.all([
       read(address, 'status'),
@@ -177,7 +191,7 @@ function head() {
     <header>
       <a class="wordmark" href="#">charter<span>.fun</span></a>
       <div class="head-right">
-        <span class="net">GenLayer Asimov</span>
+        <span class="net">${state.evm ? 'Base Sepolia' : 'GenLayer Asimov'}</span>
         ${acc
           ? `<span class="acct" title="${esc(acc)}">${esc(short(acc))}</span>`
           : `<button class="ghost" data-act="connect">Connect a wallet</button>`}
@@ -188,7 +202,7 @@ function head() {
 function lookup() {
   return `
     <form class="lookup" data-act="lookup">
-      <label for="addr">A charter token on GenLayer Asimov</label>
+      <label for="addr">A charter token, on Base Sepolia or GenLayer Asimov</label>
       <div class="row">
         <input id="addr" name="addr" spellcheck="false" autocomplete="off"
                placeholder="0x…" value="${esc(state.address)}" />
@@ -413,6 +427,151 @@ function tokenView() {
     </section>`;
 }
 
+// -------------------------------------------------------------- the badges
+
+const pct = (bps) => {
+  const whole = Math.floor(bps / 100);
+  const frac = bps % 100;
+  return frac ? `${whole}.${String(frac).padStart(2, '0')}%` : `${whole}%`;
+};
+
+/** A window as a count and a unit, so a sentence can say "per hour" and
+ *  "takes about 20 hours" from the same number without either reading like a
+ *  machine wrote it. */
+const perWindow = (seconds) => {
+  for (const [size, unit] of [[86400, 'day'], [3600, 'hour'], [60, 'minute']]) {
+    if (seconds >= size && seconds % size === 0) {
+      const n = seconds / size;
+      return { each: n === 1 ? unit : `${n} ${unit}s`, plural: `${unit}s` };
+    }
+  }
+  return { each: `${seconds} seconds`, plural: 'windows' };
+};
+
+/**
+ * One card per badge the creator chose.
+ *
+ * Each says what it promises, what it is doing right now, and where it is
+ * weak. The last of those is the part that makes the rest worth reading: a
+ * badge that only ever flatters the token is the pinned message again.
+ *
+ * Every badge here is enforced by the token itself on every transfer. There is
+ * no round, no waiting and nobody to ask, and the card says so, because a
+ * buyer should never have to guess whether a promise is arithmetic or an
+ * opinion.
+ */
+function badgeCards(evm) {
+  const b = evm.badges;
+  const supply = BigInt(evm.totalSupply);
+  const cards = [];
+
+  if (b.creatorCeilingBps > 0) {
+    const ceiling = (supply * BigInt(b.creatorCeilingBps)) / 10000n;
+    const holds = BigInt(evm.creatorHolds);
+    cards.push({
+      name: 'Creator ceiling',
+      promise: `The creator may never hold more than ${pct(b.creatorCeilingBps)} of
+        the supply. Not at launch, not later, not by buying back.`,
+      now: `Holding ${holds} of a permitted ${ceiling}.`,
+      weak: `Other wallets. On its own this says little, because a creator who
+        wanted a bigger bag would hold it somewhere else. It is worth something
+        next to the taint below, and next to the holder list.`,
+      ok: holds <= ceiling,
+    });
+  }
+
+  if (b.slowExitBps > 0) {
+    const w = perWindow(b.slowExitWindow);
+    cards.push({
+      name: 'Slow exit',
+      promise: `The creator may move at most ${pct(b.slowExitBps)} of what it holds
+        per ${w.each}. Every outgoing transfer counts, not just sales, so moving
+        the bag to another wallet is capped by the same rule.`,
+      now: `${evm.badges.creatorMovableNow} movable right now.`,
+      weak: `It does not stop an exit, it slows one. At ${pct(b.slowExitBps)} per
+        ${w.each} a full exit still takes about
+        ${Math.round(10000 / b.slowExitBps)} ${w.plural}. What it stops is
+        leaving inside one block, before anybody can react.`,
+      ok: true,
+    });
+  }
+
+  if (b.taintFollows) {
+    cards.push({
+      name: 'The limits follow the tokens',
+      promise: `Anybody the creator sends tokens to inherits the creator's limits,
+        from the moment they receive them. The usual escape is to send the bag to
+        a fresh wallet and sell from there. Here the move out is itself capped,
+        and the move is itself the evidence.`,
+      now: null,
+      weak: `A wallet funded before launch, that never touched the creator's
+        tokens, leaves no trace on this ledger to follow. Catching those needs a
+        judgement rather than a lookup.`,
+      ok: true,
+    });
+  }
+
+  return cards;
+}
+
+function evmView() {
+  const evm = state.evm;
+  const cards = badgeCards(evm);
+
+  return `
+    <section class="identity">
+      <h1>${esc(evm.name)} <span class="sym">${esc(evm.symbol)}</span></h1>
+      <p class="launched">An ERC-20 on Base Sepolia, launched by
+        <a href="${BASE_EXPLORER}/address/${esc(evm.owner)}" target="_blank"
+           rel="noopener noreferrer">${esc(short(evm.owner))}</a>.</p>
+    </section>
+
+    <section class="charter">
+      <div class="charter-head">
+        <h2>The badges</h2>
+        <p class="frozen">Chosen when the token was launched and removable by
+          nobody, the creator included. Each is enforced by the token itself on
+          every transfer: no round, no waiting, nobody to ask.</p>
+      </div>
+
+      ${cards.length ? cards.map(card => `
+        <article class="rule ${card.ok ? 'is-fired' : ''}">
+          <div class="rule-head">
+            <span class="mark ${card.ok ? 'fired' : 'untested'}">${card.ok ? '●' : '○'}</span>
+            <span class="state">${esc(card.name)}</span>
+            <span class="does">enforced in code</span>
+          </div>
+          <div class="claim">${esc(card.promise)}</div>
+          ${card.now ? `<p class="badge-now">${esc(card.now)}</p>` : ''}
+          <div class="detail">
+            <p class="badge-weak"><strong>Where it is weak.</strong> ${esc(card.weak)}</p>
+          </div>
+        </article>`).join('')
+        : `<div class="no-badges">
+             <p class="no-badges-head">This token carries no badges.</p>
+             <p>Nothing here limits what its creator can do with it. That is a
+                legitimate way to launch and it is not hidden: the absence is
+                the information.</p>
+           </div>`}
+    </section>
+
+    <section class="numbers">
+      <h2>The token itself</h2>
+      <dl>
+        <div><dt>Supply</dt><dd>${esc(evm.totalSupply)}</dd></div>
+        <div><dt>Held by the token</dt><dd>${esc(evm.treasury)}</dd></div>
+        <div><dt>Creator holds</dt><dd>${esc(evm.creatorHolds)}</dd></div>
+        <div><dt>Holders</dt><dd>${esc(evm.holders)}</dd></div>
+      </dl>
+      <p class="numbers-note">
+        ${evm.genlayerToken && !/^0x0+$/.test(evm.genlayerToken)
+          ? `Judged rules for this token are decided on ${esc(evm.genlayerChain)} at
+             <code>${esc(evm.genlayerToken)}</code>.`
+          : `This token carries no judged rules, only the badges above.`}
+      </p>
+    </section>`;
+}
+
 function render() {
   app.innerHTML = `
     ${head()}
@@ -420,6 +579,7 @@ function render() {
       ${lookup()}
       ${state.loading ? `<p class="loading">Reading the contract…</p>` : ''}
       ${state.error ? `<p class="err standalone">${esc(state.error)}</p>` : ''}
+      ${state.evm ? evmView() : ''}
       ${state.status && state.badge ? tokenView() : ''}
     </main>
     <footer>
