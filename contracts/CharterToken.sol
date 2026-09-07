@@ -191,8 +191,16 @@ contract CharterToken {
         require(chosen.slowExitBps == 0 || chosen.slowExitWindow > 0, "window");
         badges = chosen;
 
-        totalSupply = supply_;
-        uint256 held = (supply_ * treasuryShare) / 100;
+        // Whole tokens in, base units out.
+        //
+        // Declaring eighteen decimals and then storing an unscaled number is
+        // the same as declaring none: a balance of a million reads as
+        // 0.000000000001 in every wallet and every pool, and the mistake stays
+        // invisible until somebody tries to trade it. Scaling here keeps the
+        // constructor saying what a person means by a supply.
+        uint256 scaled = supply_ * (10 ** uint256(decimals));
+        totalSupply = scaled;
+        uint256 held = (scaled * treasuryShare) / 100;
         // The ceiling binds from the first block, not from the first transfer.
         //
         // Without this, a creator could tick "I may hold at most five percent",
@@ -203,9 +211,9 @@ contract CharterToken {
         // What the creator may not hold, the token holds. That is not a
         // consolation prize: the treasury is reachable only by the rules, and a
         // creator who chose this badge chose that.
-        uint256 toCreator = supply_ - held;
+        uint256 toCreator = scaled - held;
         if (chosen.creatorCeilingBps > 0) {
-            uint256 ceiling = (supply_ * chosen.creatorCeilingBps) / 10000;
+            uint256 ceiling = (scaled * chosen.creatorCeilingBps) / 10000;
             if (toCreator > ceiling) {
                 held += toCreator - ceiling;
                 toCreator = ceiling;
@@ -229,13 +237,14 @@ contract CharterToken {
         for (uint256 i = 0; i < charter.conditions.length; i++) {
             require(charter.actions[i] <= uint8(Action.DISTRIBUTE), "action");
             require(charter.amounts[i] > 0, "amount");
-            claimed += charter.amounts[i];
+            uint256 ruleAmount = charter.amounts[i] * (10 ** uint256(decimals));
+            claimed += ruleAmount;
             require(claimed <= held, "over treasury");
             rules.push(Rule({
                 when: charter.conditions[i],
                 url: charter.urls[i],
                 act: Action(charter.actions[i]),
-                amount: charter.amounts[i],
+                amount: ruleAmount,
                 fired: false,
                 firedAt: 0,
                 why: "",

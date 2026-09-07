@@ -13,7 +13,7 @@ import pad from './CharterLaunchpad.json';
 /// through the launchpad means the arguments are on chain, the launch is in a
 /// list anybody can read, and a different app claiming the same badges would
 /// have to put the same arguments in the same place.
-export const LAUNCHPAD = '0x66408D8de847C4456E0b689d55e63A4739821d9d';
+export const LAUNCHPAD = '0xB8688c7f31580EbF0A55d14534C2863b8Ed89709';
 
 const reader = new JsonRpcProvider('https://sepolia.base.org');
 

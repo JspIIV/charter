@@ -13,6 +13,7 @@
 import { connect, currentAccount, onAccountChange, read, write, short, EXPLORER } from './chain.js';
 import { readToken, BASE_EXPLORER } from './evm.js';
 import { launch, recentLaunches, LAUNCHPAD } from './launch.js';
+import { livePrice, eth } from './price.js';
 
 const app = document.getElementById('app');
 
@@ -46,6 +47,9 @@ const state = {
   // list means nobody has launched yet rather than that a server is down.
   recent: null,
   recentError: null,
+  // Live price per token address, filled in as each answers. Undefined means
+  // not asked yet, which the card says rather than showing a zero.
+  prices: {},
 };
 
 const set = (patch) => { Object.assign(state, patch); render(); };
@@ -449,7 +453,16 @@ function tokenView() {
 
 async function loadRecent() {
   try {
-    set({ recent: await recentLaunches(20), recentError: null });
+    const recent = await recentLaunches(20);
+    set({ recent, recentError: null });
+
+    // Prices come in after the list rather than with it, so a slow pool read
+    // cannot hold up the page. Each card fills itself in as its answer lands.
+    for (const l of recent.launches) {
+      livePrice(l.token)
+        .then(p => set({ prices: { ...state.prices, [l.token.toLowerCase()]: p } }))
+        .catch(() => set({ prices: { ...state.prices, [l.token.toLowerCase()]: null } }));
+    }
   } catch (e) {
     // Distinguished from an empty list on purpose. "Nobody has launched yet"
     // and "the chain did not answer" look the same on a page and mean opposite
@@ -457,6 +470,48 @@ async function loadRecent() {
     set({ recent: null,
           recentError: String(e.shortMessage || e.message).slice(0, 160) });
   }
+}
+
+/** A band drawn from the address. Not artwork, and not pretending to be: the
+ *  same token gets the same band everywhere, and nobody chose it. */
+function band(address) {
+  const seed = parseInt(String(address).slice(2, 8), 16) || 0;
+  const hue = seed % 360;
+  return `linear-gradient(135deg,
+    hsl(${hue} 42% 26%), hsl(${(hue + 48) % 360} 40% 16%))`;
+}
+
+function priceLine(token) {
+  const p = state.prices[token.toLowerCase()];
+  if (p === undefined) {
+    return `<span class="card-price nomarket">reading…</span>`;
+  }
+  if (!p || !p.market) {
+    // No pool, so no price. Said rather than filled in: a page that invents a
+    // price is a page you cannot trust about anything else on it either.
+    return `<span class="card-price nomarket">no market yet</span>`;
+  }
+  return `<span class="card-price">${esc(eth(p.priceWei))}</span>
+          <span class="card-unit">ETH</span>`;
+}
+
+function launchCard(l) {
+  const initials = String(l.symbol || '?').slice(0, 4).toUpperCase();
+  return `
+    <a class="card" href="#${esc(l.token)}">
+      <div class="card-band" style="background:${band(l.token)}">
+        <span class="initials">${esc(initials)}</span>
+      </div>
+      <div class="card-body">
+        <p class="card-name">${esc(l.name)} <span class="card-sym">${esc(l.symbol)}</span></p>
+        <p class="card-by">by ${esc(short(l.creator))}</p>
+        <div class="card-figure">${priceLine(l.token)}</div>
+        <div class="card-foot">
+          <span>${esc(short(l.token))}</span>
+          <span class="at">${esc(when(new Date(l.launchedAt * 1000).toISOString()))}</span>
+        </div>
+      </div>
+    </a>`;
 }
 
 function recentList() {
@@ -482,17 +537,7 @@ function recentList() {
   }
   return `<section class="recent">
     <h2>Launched here${total > launches.length ? `, newest ${launches.length} of ${total}` : ''}</h2>
-    <ul class="launches">
-      ${launches.map(l => `
-        <li>
-          <a class="launch-row" href="#${esc(l.token)}">
-            <span class="launch-name">${esc(l.name)}</span>
-            <span class="launch-sym">${esc(l.symbol)}</span>
-            <span class="launch-by">by ${esc(short(l.creator))}</span>
-            <span class="launch-at">${esc(when(new Date(l.launchedAt * 1000).toISOString()))}</span>
-          </a>
-        </li>`).join('')}
-    </ul>
+    <div class="grid">${launches.map(launchCard).join('')}</div>
   </section>`;
 }
 

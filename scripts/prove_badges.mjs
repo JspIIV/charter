@@ -31,7 +31,8 @@ const sock = (await Wallet.fromEncryptedJson(
   fs.readFileSync(`${KS}/ppub.json`, 'utf8'), PASS.ppub)).connect(provider);
 const buyer = '0x000000000000000000000000000000000000dEaD';
 
-const SUPPLY = 1_000_000n;
+const WHOLE = 1_000_000n;                 // what the launch asks for
+const SUPPLY = WHOLE * 10n ** 18n;        // what the token then holds
 const SHARE = 0n;                 // no treasury: this is about the badges
 const CEILING_BPS = 500n;         // creator may hold at most 5%
 const SLOW_BPS = 500n;            // and move at most 5% of it per window
@@ -114,7 +115,7 @@ say('');
 // way out rather than the way in.
 const factory = new ContractFactory(artifact.abi, artifact.bytecode, creator);
 const token = await factory.deploy(
-  'Badge Test', 'BDG', SUPPLY, SHARE,
+  'Badge Test', 'BDG', WHOLE, SHARE,
   creator.address, creator.address,
   '0x0000000000000000000000000000000000000000', 'none',
   noRules,
@@ -169,7 +170,7 @@ say('limit fires before the recipient ceiling is ever reached. That ordering is'
 say('right; it just means the ceiling has to be tried where nothing else bites.');
 
 const plain = await factory.deploy(
-  'Ceiling Test', 'CEIL', SUPPLY, SHARE,
+  'Ceiling Test', 'CEIL', WHOLE, SHARE,
   creator.address, creator.address,
   '0x0000000000000000000000000000000000000000', 'none',
   noRules,
