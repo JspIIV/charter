@@ -1,0 +1,83 @@
+{
+  "proved_at": "2026-09-07T13:52:40.067Z",
+  "chain": "base sepolia",
+  "launchpad": "0x66408D8de847C4456E0b689d55e63A4739821d9d",
+  "token": "0x15C592200e0ACb9d9af871B986edBbEB4CABB827",
+  "launched_by": "0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+  "deployed_by": "0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+  "gas_used": "1783817",
+  "badges": {
+    "creatorCeilingBps": "500",
+    "slowExitBps": "500",
+    "slowExitWindow": "3600",
+    "taintFollows": "true"
+  },
+  "checks": [
+    {
+      "label": "the launch landed in the list",
+      "ok": true
+    },
+    {
+      "label": "newest first, so the top of the list is the last launch",
+      "ok": true
+    },
+    {
+      "label": "the token names the stranger as creator, not the launchpad",
+      "ok": true
+    },
+    {
+      "label": "and the launchpad holds none of it",
+      "ok": true
+    },
+    {
+      "label": "the badges asked for are the badges on it",
+      "ok": true
+    },
+    {
+      "label": "the ceiling bound at launch, so the badge is true on day one",
+      "ok": true
+    },
+    {
+      "label": "the creator is under the limits from the first block",
+      "ok": true
+    },
+    {
+      "label": "and a stranger can find it all by index, with no account",
+      "ok": true
+    },
+    {
+      "label": "the creator's own history is one call",
+      "ok": true
+    }
+  ],
+  "transcript": [
+    "charter.fun launchpad, on Base Sepolia.",
+    "",
+    "  deployed by  0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+    "  launching as 0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "",
+    "  launchpad 0x66408D8de847C4456E0b689d55e63A4739821d9d",
+    "  the list holds 0 launch(es) before this",
+    "",
+    "A stranger launches, ticking two badges.",
+    "  mined in block 46510435, 1783817 gas",
+    "  token 0x15C592200e0ACb9d9af871B986edBbEB4CABB827",
+    "",
+    "  listed as     Listed Coin (LIST)",
+    "  its creator   0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "  badges on it  ceiling 500bps, slow exit 500bps per 3600s, taint true",
+    "  creator holds 50000, token holds 950000",
+    "",
+    "  ok   the launch landed in the list",
+    "  ok   newest first, so the top of the list is the last launch",
+    "  ok   the token names the stranger as creator, not the launchpad",
+    "  ok   and the launchpad holds none of it",
+    "  ok   the badges asked for are the badges on it",
+    "  ok   the ceiling bound at launch, so the badge is true on day one",
+    "  ok   the creator is under the limits from the first block",
+    "  ok   and a stranger can find it all by index, with no account",
+    "  ok   the creator's own history is one call",
+    "",
+    "9 checks. A launch anybody can make, and anybody can find."
+  ]
+}

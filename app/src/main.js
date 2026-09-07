@@ -12,7 +12,7 @@
 // clock, and a re-render draws whatever is true now.
 import { connect, currentAccount, onAccountChange, read, write, short, EXPLORER } from './chain.js';
 import { readToken, BASE_EXPLORER } from './evm.js';
-import { launch } from './launch.js';
+import { launch, recentLaunches, LAUNCHPAD } from './launch.js';
 
 const app = document.getElementById('app');
 
@@ -42,6 +42,10 @@ const state = {
     understood: false,
   },
   launching: null,
+  // Everything launched here, newest first. Read off the chain, so an empty
+  // list means nobody has launched yet rather than that a server is down.
+  recent: null,
+  recentError: null,
 };
 
 const set = (patch) => { Object.assign(state, patch); render(); };
@@ -440,6 +444,58 @@ function tokenView() {
     </section>`;
 }
 
+
+// ------------------------------------------------------------- what is here
+
+async function loadRecent() {
+  try {
+    set({ recent: await recentLaunches(20), recentError: null });
+  } catch (e) {
+    // Distinguished from an empty list on purpose. "Nobody has launched yet"
+    // and "the chain did not answer" look the same on a page and mean opposite
+    // things to somebody deciding whether this works.
+    set({ recent: null,
+          recentError: String(e.shortMessage || e.message).slice(0, 160) });
+  }
+}
+
+function recentList() {
+  if (state.recentError) {
+    return `<section class="recent">
+      <h2>Launched here</h2>
+      <p class="err">Base Sepolia did not answer, so this list is unknown rather
+        than empty. (${esc(state.recentError)})</p>
+    </section>`;
+  }
+  if (!state.recent) {
+    return `<section class="recent"><h2>Launched here</h2>
+      <p class="loading">Reading the launchpad…</p></section>`;
+  }
+  const { total, launches } = state.recent;
+  if (!total) {
+    return `<section class="recent">
+      <h2>Launched here</h2>
+      <p class="none">Nothing yet. The launchpad is at
+        <code>${esc(LAUNCHPAD)}</code> on Base Sepolia and its list is empty,
+        which anybody can check without asking us.</p>
+    </section>`;
+  }
+  return `<section class="recent">
+    <h2>Launched here${total > launches.length ? `, newest ${launches.length} of ${total}` : ''}</h2>
+    <ul class="launches">
+      ${launches.map(l => `
+        <li>
+          <a class="launch-row" href="#${esc(l.token)}">
+            <span class="launch-name">${esc(l.name)}</span>
+            <span class="launch-sym">${esc(l.symbol)}</span>
+            <span class="launch-by">by ${esc(short(l.creator))}</span>
+            <span class="launch-at">${esc(when(new Date(l.launchedAt * 1000).toISOString()))}</span>
+          </a>
+        </li>`).join('')}
+    </ul>
+  </section>`;
+}
+
 // ------------------------------------------------------------ launching one
 
 async function doLaunch() {
@@ -708,6 +764,8 @@ function render() {
     ${head()}
     <main>
       ${state.route === 'launch' ? launchForm() : lookup()}
+      ${state.route !== 'launch' && !state.evm && !state.status
+        ? recentList() : ''}
       ${state.loading ? `<p class="loading">Reading the contract…</p>` : ''}
       ${state.error ? `<p class="err standalone">${esc(state.error)}</p>` : ''}
       ${state.evm ? evmView() : ''}
@@ -764,7 +822,10 @@ window.addEventListener('hashchange', () => {
   const at = location.hash.slice(1);
   state.route = at === 'launch' ? 'launch' : '';
   if (at && at !== 'launch') load(at);
-  else set({ status: null, badge: null, evm: null, address: '' });
+  else {
+    set({ status: null, badge: null, evm: null, address: '' });
+    if (at !== 'launch') loadRecent();
+  }
 });
 
 onAccountChange(account => set({ account }));
@@ -773,3 +834,4 @@ const at = location.hash.slice(1);
 state.route = at === 'launch' ? 'launch' : '';
 render();
 if (at && at !== 'launch') load(at);
+else loadRecent();

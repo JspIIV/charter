@@ -292,3 +292,17 @@ input.inline {
   margin: 24px 0; font-size: 14px; cursor: pointer; max-width: 62ch;
 }
 .confirm input { margin-top: 3px; width: 16px; height: 16px; }
+
+/* ------------------------------------------------------------ what is here */
+
+.recent { margin-top: 44px; }
+.launches { list-style: none; margin: 0; padding: 0; }
+.launch-row {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 12px 0; border-bottom: 1px solid var(--line); text-decoration: none;
+}
+.launch-row:hover { background: var(--panel); }
+.launch-name { font-size: 16px; }
+.launch-sym { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+.launch-by { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+.launch-at { margin-left: auto; font-size: 12px; color: var(--faint); }
