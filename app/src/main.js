@@ -12,6 +12,7 @@
 // clock, and a re-render draws whatever is true now.
 import { connect, currentAccount, onAccountChange, read, write, short, EXPLORER } from './chain.js';
 import { readToken, BASE_EXPLORER } from './evm.js';
+import { launch } from './launch.js';
 
 const app = document.getElementById('app');
 
@@ -31,6 +32,16 @@ const state = {
   // The other half of a charter token: the badges, on the EVM chain, enforced
   // by ordinary code. Null when the address looked up was not one.
   evm: null,
+  // The launch form. `form` is what has been typed and ticked, `launching` is
+  // what is happening to it.
+  form: {
+    name: '', symbol: '', supply: '1000000',
+    ceiling: false, ceilingPct: '5',
+    slow: false, slowPct: '5', slowHours: '1',
+    taint: false,
+    understood: false,
+  },
+  launching: null,
 };
 
 const set = (patch) => { Object.assign(state, patch); render(); };
@@ -190,8 +201,10 @@ function head() {
   return `
     <header>
       <a class="wordmark" href="#">charter<span>.fun</span></a>
+      <a class="launch-link" href="#launch">Launch a token</a>
       <div class="head-right">
-        <span class="net">${state.evm ? 'Base Sepolia' : 'GenLayer Asimov'}</span>
+        <span class="net">${state.evm || state.route === 'launch'
+          ? 'Base Sepolia' : 'GenLayer Asimov'}</span>
         ${acc
           ? `<span class="acct" title="${esc(acc)}">${esc(short(acc))}</span>`
           : `<button class="ghost" data-act="connect">Connect a wallet</button>`}
@@ -427,6 +440,124 @@ function tokenView() {
     </section>`;
 }
 
+// ------------------------------------------------------------ launching one
+
+async function doLaunch() {
+  const f = state.form;
+  const name = f.name.trim();
+  const symbol = f.symbol.trim();
+  const supply = f.supply.trim();
+
+  if (!name || !symbol || !/^[0-9]+$/.test(supply) || BigInt(supply) <= 0n) {
+    return set({ launching: { phase: 'error',
+      note: 'A name, a symbol and a whole number of tokens.' } });
+  }
+  if (!f.understood) {
+    return set({ launching: { phase: 'error',
+      note: 'The badges cannot be changed afterwards. Confirm that you know.' } });
+  }
+
+  const badges = {
+    creatorCeilingBps: f.ceiling ? Math.round(Number(f.ceilingPct) * 100) : 0,
+    slowExitBps: f.slow ? Math.round(Number(f.slowPct) * 100) : 0,
+    slowExitWindow: f.slow ? Math.round(Number(f.slowHours) * 3600) : 0,
+    // A cap that does not follow the tokens is escaped by one transfer, so
+    // choosing the cap chooses the taint with it. Offering them apart would be
+    // offering a badge that does not work.
+    taintFollows: f.taint || f.slow,
+  };
+
+  set({ launching: { phase: 'signing' } });
+  try {
+    const { address } = await launch({
+      name, symbol, supply, treasuryShare: 0, badges,
+    });
+    set({ launching: null });
+    location.hash = address;
+  } catch (e) {
+    set({ launching: { phase: 'error',
+      note: String(e.shortMessage || e.message).slice(0, 200) } });
+  }
+}
+
+function launchForm() {
+  const f = state.form;
+  const l = state.launching;
+  const chosen = [f.ceiling, f.slow, f.taint].filter(Boolean).length;
+
+  return `
+    <form class="launch" data-act="launch">
+      <section class="identity">
+        <h1>Launch a token</h1>
+        <p class="launched">On Base Sepolia, from your own wallet. Nothing here
+          can reach the token afterwards, including us.</p>
+      </section>
+
+      <div class="field-row">
+        <label>Name<input name="name" value="${esc(f.name)}" placeholder="Charter Coin" /></label>
+        <label>Symbol<input name="symbol" value="${esc(f.symbol)}" placeholder="CHRT" /></label>
+        <label>Supply<input name="supply" value="${esc(f.supply)}" inputmode="numeric" /></label>
+      </div>
+
+      <h2>Badges</h2>
+      <p class="frozen">Tick what you want the token to hold you to. You can tick
+        none, and a token with none is a normal token: its page will say so
+        plainly rather than leave it out.</p>
+
+      <label class="pick ${f.ceiling ? 'on' : ''}">
+        <input type="checkbox" name="ceiling" ${f.ceiling ? 'checked' : ''} />
+        <span class="pick-body">
+          <span class="pick-name">Creator ceiling</span>
+          <span class="pick-what">You may never hold more than
+            <input class="inline" name="ceilingPct" value="${esc(f.ceilingPct)}"
+                   inputmode="decimal" />% of the supply. Whatever you may not
+            hold, the token holds from the first block, so the badge is true on
+            day one rather than after your first transfer.</span>
+        </span>
+      </label>
+
+      <label class="pick ${f.slow ? 'on' : ''}">
+        <input type="checkbox" name="slow" ${f.slow ? 'checked' : ''} />
+        <span class="pick-body">
+          <span class="pick-name">Slow exit</span>
+          <span class="pick-what">You may move at most
+            <input class="inline" name="slowPct" value="${esc(f.slowPct)}"
+                   inputmode="decimal" />% of what you hold every
+            <input class="inline" name="slowHours" value="${esc(f.slowHours)}"
+                   inputmode="decimal" /> hour(s). Every outgoing transfer
+            counts, not just sales, and anybody you send to inherits the same
+            limit. It does not stop you leaving; it stops you leaving inside one
+            block.</span>
+        </span>
+      </label>
+
+      <label class="pick ${f.taint || f.slow ? 'on' : ''} ${f.slow ? 'forced' : ''}">
+        <input type="checkbox" name="taint" ${f.taint || f.slow ? 'checked' : ''}
+               ${f.slow ? 'disabled' : ''} />
+        <span class="pick-body">
+          <span class="pick-name">The limits follow the tokens</span>
+          <span class="pick-what">Anybody you send tokens to inherits your limits.
+            ${f.slow
+              ? 'Included with the slow exit, because a cap that does not follow '
+                + 'the tokens is escaped by one transfer.'
+              : 'On its own this marks the wallets you funded without capping '
+                + 'anything, which is worth less than it sounds.'}</span>
+        </span>
+      </label>
+
+      <label class="confirm">
+        <input type="checkbox" name="understood" ${f.understood ? 'checked' : ''} />
+        <span>I understand that ${chosen ? 'these badges' : 'this token carrying no badges'}
+          cannot be changed or removed after launch, by me or by anybody.</span>
+      </label>
+
+      ${l && l.phase === 'signing'
+        ? `<p class="funding">Waiting for your wallet, then for Base to mine it…</p>`
+        : `<button type="submit">Launch it</button>`}
+      ${l && l.phase === 'error' ? `<p class="err">${esc(l.note)}</p>` : ''}
+    </form>`;
+}
+
 // -------------------------------------------------------------- the badges
 
 const pct = (bps) => {
@@ -576,7 +707,7 @@ function render() {
   app.innerHTML = `
     ${head()}
     <main>
-      ${lookup()}
+      ${state.route === 'launch' ? launchForm() : lookup()}
       ${state.loading ? `<p class="loading">Reading the contract…</p>` : ''}
       ${state.error ? `<p class="err standalone">${esc(state.error)}</p>` : ''}
       ${state.evm ? evmView() : ''}
@@ -605,6 +736,17 @@ app.addEventListener('click', async (event) => {
   }
 });
 
+app.addEventListener('input', (event) => {
+  const form = event.target.closest('form[data-act="launch"]');
+  if (!form) return;
+  const el = event.target;
+  const value = el.type === 'checkbox' ? el.checked : el.value;
+  // Assigned rather than set(), because re-rendering on every keystroke would
+  // take the cursor out of the field somebody is typing in.
+  state.form = { ...state.form, [el.name]: value };
+  if (el.type === 'checkbox') render();
+});
+
 app.addEventListener('submit', (event) => {
   const form = event.target.closest('[data-act]');
   if (!form) return;
@@ -615,14 +757,19 @@ app.addEventListener('submit', (event) => {
     if (address) { location.hash = address; }
   }
   if (form.dataset.act === 'fund') doFund(data.get('amount'));
+  if (form.dataset.act === 'launch') doLaunch();
 });
 
 window.addEventListener('hashchange', () => {
-  const address = location.hash.slice(1);
-  if (address) load(address); else set({ status: null, badge: null, address: '' });
+  const at = location.hash.slice(1);
+  state.route = at === 'launch' ? 'launch' : '';
+  if (at && at !== 'launch') load(at);
+  else set({ status: null, badge: null, evm: null, address: '' });
 });
 
 onAccountChange(account => set({ account }));
 
+const at = location.hash.slice(1);
+state.route = at === 'launch' ? 'launch' : '';
 render();
-if (location.hash.slice(1)) load(location.hash.slice(1));
+if (at && at !== 'launch') load(at);

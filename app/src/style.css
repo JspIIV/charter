@@ -251,3 +251,44 @@ footer p { margin: 0; max-width: 70ch; }
 code {
   font-family: var(--mono); font-size: 12px; word-break: break-all;
 }
+
+/* ------------------------------------------------------------ launching one */
+
+.launch-link { font-size: 13px; text-decoration: none; border-bottom: 1px solid var(--line); }
+
+.field-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+.field-row label {
+  display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px;
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+/* A badge is ticked, not written. The parameter sits inside the sentence it
+ * changes, so nobody has to hold a number and its meaning apart in their head. */
+.pick {
+  display: flex; gap: 12px; align-items: flex-start;
+  border: 1px solid var(--line); padding: 16px; margin-bottom: 12px;
+  cursor: pointer; background: var(--paper);
+}
+.pick.on { background: var(--panel); border-left: 2px solid var(--done); }
+.pick.forced { cursor: default; }
+.pick input[type="checkbox"] { margin-top: 3px; width: 16px; height: 16px; }
+.pick-body { display: block; }
+.pick-name {
+  display: block; font-family: var(--mono); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;
+}
+.pick-what { display: block; font-size: 14px; line-height: 1.5; color: var(--dim); }
+.pick.on .pick-what { color: var(--ink); }
+
+input.inline {
+  width: 3.5em; padding: 1px 5px; font-size: 13px; text-align: center;
+}
+
+/* Not fine print. The one thing that makes every badge above worth anything is
+ * that none of them can be taken off afterwards, so it is said in full size. */
+.confirm {
+  display: flex; gap: 12px; align-items: flex-start;
+  margin: 24px 0; font-size: 14px; cursor: pointer; max-width: 62ch;
+}
+.confirm input { margin-top: 3px; width: 16px; height: 16px; }
