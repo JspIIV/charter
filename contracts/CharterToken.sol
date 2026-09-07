@@ -92,6 +92,47 @@ contract CharterToken {
     address[] private holders;
     mapping(address => bool) private known;
 
+    // ------------------------------------------------------------- the badges
+    //
+    // Chosen by the creator at launch by ticking a box, written here, and never
+    // removable by anyone. A token can carry none of them; that is a legitimate
+    // launch and the absence is as visible as the presence.
+    //
+    // These four need no validator round. They are arithmetic over balances and
+    // block.timestamp, they run on every transfer, they cost nothing, and they
+    // cannot fail to fire. Asking a round what time it is would be absurd.
+
+    struct Badges {
+        // The creator may never hold more than this share of supply, in
+        // hundredths of a percent. 0 means the badge was not chosen.
+        uint256 creatorCeilingBps;
+        // The creator may move at most this share of their own holding per
+        // window, in hundredths of a percent, counting every outgoing transfer
+        // rather than only sales. 0 means the badge was not chosen.
+        uint256 slowExitBps;
+        uint256 slowExitWindow;      // seconds
+        // Anybody the creator sent tokens to inherits the creator's limits, so
+        // moving to a fresh wallet buys nothing: the move is itself capped, and
+        // the move is itself the evidence.
+        bool taintFollows;
+    }
+
+    Badges public badges;
+
+    /// Addresses held to the creator's limits. The creator from launch, and
+    /// afterwards anybody the creator or an already-marked address sent to.
+    mapping(address => bool) public restricted;
+
+    /// Rolling window per restricted address: what has left, and when the
+    /// window it belongs to started.
+    mapping(address => uint256) private movedInWindow;
+    mapping(address => uint256) private windowStartedAt;
+
+    event Restricted(address indexed who, address indexed by);
+
+    error OverCreatorCeiling(uint256 wouldHold, uint256 ceiling);
+    error MovingTooFast(uint256 wanted, uint256 allowedThisWindow);
+
     event RuleFired(uint256 indexed rule, Action action, uint256 amount, string why);
     event CarrierChanged(address indexed from, address indexed to);
     event Distributed(uint256 amount, uint256 paid, uint256 returnedToTreasury);
@@ -123,7 +164,8 @@ contract CharterToken {
         address carrier_,
         string memory genlayerToken_,
         string memory genlayerChain_,
-        Charter memory charter
+        Charter memory charter,
+        Badges memory chosen
     ) {
         require(treasuryShare <= 100, "share");
         require(creator_ != address(0), "creator");
@@ -141,9 +183,23 @@ contract CharterToken {
         genlayerToken = genlayerToken_;
         genlayerChain = genlayerChain_;
 
+        // Refused rather than clamped. A ceiling above 100% or a window of zero
+        // is a badge that reads as a promise and enforces nothing, and a launch
+        // that quietly corrects it would put that badge on the token anyway.
+        require(chosen.creatorCeilingBps <= 10000, "ceiling");
+        require(chosen.slowExitBps <= 10000, "slow exit");
+        require(chosen.slowExitBps == 0 || chosen.slowExitWindow > 0, "window");
+        badges = chosen;
+
         totalSupply = supply_;
         uint256 held = (supply_ * treasuryShare) / 100;
         treasury = held;
+        // The creator is marked from the start, so the very first transfer out
+        // is already under whatever limits were chosen.
+        if (chosen.taintFollows || chosen.slowExitBps > 0) {
+            restricted[creator_] = true;
+            emit Restricted(creator_, address(0));
+        }
         _credit(creator_, supply_ - held);
         emit Transfer(address(0), creator_, supply_ - held);
 
@@ -292,9 +348,69 @@ contract CharterToken {
     function _move(address from, address to, uint256 value) private {
         require(to != address(0), "to zero");
         require(balanceOf[from] >= value, "balance");
+
+        _checkSlowExit(from, value);
         balanceOf[from] -= value;
+        _checkCeiling(to, value);
         _credit(to, value);
+
+        // The taint is applied after the transfer, never before, so it cannot
+        // affect the limits on the transfer that created it. A marked address
+        // marks whoever it sends to, which is what makes this cover a cluster
+        // rather than a single address.
+        if (badges.taintFollows && restricted[from] && !restricted[to]) {
+            restricted[to] = true;
+            emit Restricted(to, from);
+        }
+
         emit Transfer(from, to, value);
+    }
+
+    /// The creator, and anybody the creator handed tokens to, may move only a
+    /// share of what they hold per window.
+    ///
+    /// The cap is on every outgoing transfer rather than on sales, and that is
+    /// the whole point of it. A cap on selling is escaped by moving to a second
+    /// wallet and selling from there. A cap on moving is not, because the move
+    /// out is itself capped.
+    ///
+    /// It does not prevent an exit. At five percent an hour a full exit takes
+    /// about a day. It prevents an exit inside one block, before anybody can
+    /// react, which is the thing that actually happens.
+    function _checkSlowExit(address from, uint256 value) private {
+        if (badges.slowExitBps == 0 || !restricted[from]) return;
+
+        uint256 windowStart = windowStartedAt[from];
+        uint256 movedSoFar = movedInWindow[from];
+        if (block.timestamp >= windowStart + badges.slowExitWindow) {
+            windowStart = block.timestamp;
+            movedSoFar = 0;
+        }
+
+        // A share of what is held now plus what has already gone this window,
+        // so spending the allowance does not shrink the allowance underneath
+        // itself and leave a dust amount unmovable.
+        uint256 allowed = ((balanceOf[from] + movedSoFar) * badges.slowExitBps) / 10000;
+        if (movedSoFar + value > allowed) {
+            revert MovingTooFast(value, allowed > movedSoFar ? allowed - movedSoFar : 0);
+        }
+
+        windowStartedAt[from] = windowStart;
+        movedInWindow[from] = movedSoFar + value;
+    }
+
+    /// The creator may never hold more than their share of supply. Checked on
+    /// the way in, so it binds a buy-back as well as the original allocation.
+    ///
+    /// This one is close to decoration on its own: a creator who wanted a bigger
+    /// bag would hold it elsewhere. It is worth something alongside the taint,
+    /// which makes "the creator" a set of addresses rather than one, and
+    /// alongside a holder list a buyer can read.
+    function _checkCeiling(address to, uint256 value) private view {
+        if (badges.creatorCeilingBps == 0 || to != owner) return;
+        uint256 ceiling = (totalSupply * badges.creatorCeilingBps) / 10000;
+        uint256 wouldHold = balanceOf[to] + value;
+        if (wouldHold > ceiling) revert OverCreatorCeiling(wouldHold, ceiling);
     }
 
     function _credit(address who, uint256 value) private {
@@ -303,5 +419,49 @@ contract CharterToken {
             holders.push(who);
         }
         balanceOf[who] += value;
+    }
+
+    // ------------------------------------------------------- reading a badge
+
+    /// What a buyer needs to judge the badges, in one call.
+    ///
+    /// `movable` is what this address could send right now, which is the only
+    /// number that answers the question somebody actually has. A badge that
+    /// reported only its percentage would leave every reader doing arithmetic
+    /// against a balance they have to fetch separately.
+    function badgeView(address who)
+        external
+        view
+        returns (
+            uint256 creatorCeilingBps,
+            uint256 slowExitBps,
+            uint256 slowExitWindow,
+            bool taintFollows,
+            bool isRestricted,
+            uint256 movable,
+            uint256 windowEndsAt
+        )
+    {
+        creatorCeilingBps = badges.creatorCeilingBps;
+        slowExitBps = badges.slowExitBps;
+        slowExitWindow = badges.slowExitWindow;
+        taintFollows = badges.taintFollows;
+        isRestricted = restricted[who];
+
+        if (badges.slowExitBps == 0 || !restricted[who]) {
+            return (creatorCeilingBps, slowExitBps, slowExitWindow, taintFollows,
+                    isRestricted, balanceOf[who], 0);
+        }
+
+        uint256 movedSoFar = movedInWindow[who];
+        uint256 windowStart = windowStartedAt[who];
+        if (block.timestamp >= windowStart + badges.slowExitWindow) {
+            movedSoFar = 0;
+            windowStart = block.timestamp;
+        }
+        uint256 allowed = ((balanceOf[who] + movedSoFar) * badges.slowExitBps) / 10000;
+        uint256 left = allowed > movedSoFar ? allowed - movedSoFar : 0;
+        movable = left > balanceOf[who] ? balanceOf[who] : left;
+        windowEndsAt = windowStart + badges.slowExitWindow;
     }
 }

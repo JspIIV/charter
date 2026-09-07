@@ -1,0 +1,96 @@
+{
+  "proved_at": "2026-09-07T13:22:57.503Z",
+  "chain": "base sepolia",
+  "token": "0xc704a35Ff6990Ad1ec22152891055eAf44C76d14",
+  "ceiling_token": "0x649e0d4BC55B22285c0bBA06D46b6D18Ebc61376",
+  "creator": "0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+  "fresh_wallet": "0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+  "badges": {
+    "creatorCeilingBps": "500",
+    "slowExitBps": "500",
+    "slowExitWindow": "3600",
+    "taintFollows": true
+  },
+  "checks": [
+    {
+      "label": "the creator cannot leave in one transaction, and the contract says why",
+      "ok": true
+    },
+    {
+      "label": "but can move its hourly allowance",
+      "ok": true
+    },
+    {
+      "label": "and not twice in the same hour",
+      "ok": true
+    },
+    {
+      "label": "a wallet the creator funded is marked as the creator's",
+      "ok": true
+    },
+    {
+      "label": "and cannot dump either, so the wallet hop buys nothing",
+      "ok": true
+    },
+    {
+      "label": "the creator cannot be given more than its ceiling",
+      "ok": true
+    },
+    {
+      "label": "but can be given exactly the ceiling",
+      "ok": true
+    },
+    {
+      "label": "and a reader can see what is movable right now",
+      "ok": true
+    }
+  ],
+  "transcript": [
+    "charter.fun badges, on Base Sepolia.",
+    "",
+    "  creator     0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+    "  fresh wallet 0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "",
+    "  badges: creator may hold at most 5% of supply, and may move at most 5%",
+    "  of what it holds per hour, counting every outgoing transfer. Anybody the",
+    "  creator sends to inherits both.",
+    "",
+    "  token 0xc704a35Ff6990Ad1ec22152891055eAf44C76d14",
+    "  creator holds 1000000, so 5% of that is 50000 an hour",
+    "",
+    "The creator tries to leave in one transaction.",
+    "  refused       sending the whole bag at once  (MovingTooFast)",
+    "",
+    "Then within the limit, which is allowed.",
+    "  went through   sending exactly the hourly allowance",
+    "",
+    "And again in the same hour, which is not.",
+    "  refused       a second transfer in the same window  (MovingTooFast)",
+    "",
+    "Now the escape everybody uses: the fresh wallet sells instead.",
+    "  the fresh wallet holds 50000 and was never named at launch",
+    "  the contract marked it as the creator's: true",
+    "  refused       the fresh wallet sending its whole balance  (MovingTooFast)",
+    "",
+    "The ceiling needs its own token, and the reason is worth knowing.",
+    "On the one above, every holder counts as the creator, so the sender own",
+    "limit fires before the recipient ceiling is ever reached. That ordering is",
+    "right; it just means the ceiling has to be tried where nothing else bites.",
+    "  token 0x649e0d4BC55B22285c0bBA06D46b6D18Ebc61376",
+    "  the creator may hold at most 50000",
+    "  the creator sent everything away, which the ceiling does not stop",
+    "  refused       sending it all back to the creator  (OverCreatorCeiling)",
+    "  went through   sending exactly the ceiling",
+    "",
+    "  ok   the creator cannot leave in one transaction, and the contract says why",
+    "  ok   but can move its hourly allowance",
+    "  ok   and not twice in the same hour",
+    "  ok   a wallet the creator funded is marked as the creator's",
+    "  ok   and cannot dump either, so the wallet hop buys nothing",
+    "  ok   the creator cannot be given more than its ceiling",
+    "  ok   but can be given exactly the ceiling",
+    "  ok   and a reader can see what is movable right now",
+    "",
+    "8 checks. Every limit was tried, not asserted."
+  ]
+}
