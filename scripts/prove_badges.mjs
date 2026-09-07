@@ -184,14 +184,28 @@ say('  token ' + PLAIN);
 const ceiling = (SUPPLY * CEILING_BPS) / 10000n;
 say('  the creator may hold at most ' + ceiling);
 
-// Out to an ordinary holder first, which the ceiling does not stop: it binds
-// what comes in to the creator, not what leaves.
-await (await plain.connect(creator).transfer(sock.address, SUPPLY)).wait();
-await untilBalance(plain, sock.address, SUPPLY);
-say('  the creator sent everything away, which the ceiling does not stop');
+// The ceiling has to bind at launch, not from the first transfer. Otherwise a
+// creator ticks "at most five percent", is handed the whole supply, and carries
+// a badge that says one thing while the holder list says another. The ceiling
+// would be working exactly as written and the badge would still be a lie.
+const launchHolds = await plain.balanceOf(creator.address);
+const launchTreasury = await plain.treasury();
+say('  at launch the creator was given ' + launchHolds
+  + ' and the token kept ' + launchTreasury);
+const boundAtLaunch = launchHolds === ceiling && launchTreasury === SUPPLY - ceiling;
 
-const ceilingRefused = await refused('sending it all back to the creator',
-  'OverCreatorCeiling', plain, sock, creator.address, SUPPLY);
+// Out to an ordinary holder, which the ceiling does not stop: it binds what
+// comes in to the creator, not what leaves.
+await (await plain.connect(creator).transfer(sock.address, ceiling)).wait();
+await untilBalance(plain, sock.address, ceiling);
+say('  the creator sent it all away, which the ceiling does not stop');
+
+// Sending more than the ceiling back is not tried here, because it cannot be:
+// binding the ceiling at launch leaves the whole circulating supply equal to
+// the ceiling, so there is nothing above it to send. The runtime check is not
+// redundant, it just does not bite until circulating supply grows past the
+// ceiling, which happens after a DISTRIBUTE rule pays holders. Contriving a
+// number here would be testing arithmetic rather than the badge.
 
 let underCeilingOk = true;
 try {
@@ -212,7 +226,10 @@ const checks = [
   ['and not twice in the same hour', secondRefused],
   ['a wallet the creator funded is marked as the creator\'s', isRestricted === true],
   ['and cannot dump either, so the wallet hop buys nothing', hopRefused],
-  ['the creator cannot be given more than its ceiling', ceilingRefused],
+  ['the ceiling binds at launch, so the badge is not a lie on day one',
+    boundAtLaunch],
+  ['what the creator may not hold, the token holds',
+    launchTreasury === SUPPLY - ceiling],
   ['but can be given exactly the ceiling', underCeilingOk],
   ['and a reader can see what is movable right now', view[5] !== undefined],
 ];

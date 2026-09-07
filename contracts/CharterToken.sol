@@ -193,15 +193,34 @@ contract CharterToken {
 
         totalSupply = supply_;
         uint256 held = (supply_ * treasuryShare) / 100;
+        // The ceiling binds from the first block, not from the first transfer.
+        //
+        // Without this, a creator could tick "I may hold at most five percent",
+        // be handed the whole supply at launch, and carry a badge that says one
+        // thing while the holder list says another. The ceiling would still be
+        // working exactly as written, and the badge would still be a lie.
+        //
+        // What the creator may not hold, the token holds. That is not a
+        // consolation prize: the treasury is reachable only by the rules, and a
+        // creator who chose this badge chose that.
+        uint256 toCreator = supply_ - held;
+        if (chosen.creatorCeilingBps > 0) {
+            uint256 ceiling = (supply_ * chosen.creatorCeilingBps) / 10000;
+            if (toCreator > ceiling) {
+                held += toCreator - ceiling;
+                toCreator = ceiling;
+            }
+        }
         treasury = held;
+
         // The creator is marked from the start, so the very first transfer out
         // is already under whatever limits were chosen.
         if (chosen.taintFollows || chosen.slowExitBps > 0) {
             restricted[creator_] = true;
             emit Restricted(creator_, address(0));
         }
-        _credit(creator_, supply_ - held);
-        emit Transfer(address(0), creator_, supply_ - held);
+        _credit(creator_, toCreator);
+        emit Transfer(address(0), creator_, toCreator);
 
         // Rules that together claim more than the treasury holds could not all
         // be carried out, and a badge for a rule that cannot work is worse than
