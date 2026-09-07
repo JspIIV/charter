@@ -1,0 +1,59 @@
+{
+  "proved_at": "2026-09-07T17:36:02.049Z",
+  "chain": "base sepolia",
+  "token": "0x4c02F6f6B3d9256676B1F4167d949B8D136B6F8E",
+  "pair": "0x5d43671e13C6B74D7B64E43677b5bD33CE3F30f1",
+  "creator": "0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+  "buyer": "0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+  "pair_marked": false,
+  "buyer_marked": false,
+  "wallet_marked": true,
+  "checks": [
+    {
+      "label": "the pool is not marked by receiving from the creator",
+      "ok": true
+    },
+    {
+      "label": "so a buyer is not marked by buying from the pool",
+      "ok": true
+    },
+    {
+      "label": "and the buyer can move everything they bought",
+      "ok": true
+    },
+    {
+      "label": "while a plain wallet the creator paid is still marked",
+      "ok": true
+    }
+  ],
+  "transcript": [
+    "A token with the badge on, and a real pool in front of it.",
+    "",
+    "  creator 0x80519c53f10D731e4FF83A7d9ACd69cF98da6258",
+    "  buyer   0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+    "",
+    "  launchpad 0x6fFbf8e8F6986ea7b65A0bfDdD8D984e6Fcff0E3",
+    "  token 0x4c02F6f6B3d9256676B1F4167d949B8D136B6F8E",
+    "",
+    "The pool is already there from an earlier run.",
+    "  pair 0x5d43671e13C6B74D7B64E43677b5bD33CE3F30f1",
+    "  is the pool marked as the creator's? false",
+    "",
+    "Then somebody buys through it, the way anybody would.",
+    "  the buyer now holds 14244892127446778111158",
+    "  is the buyer marked? false",
+    "",
+    "The buyer sells the lot straight back, which a marked address could not.",
+    "  went through, so the buyer is under no limit",
+    "",
+    "And the badge still works where it should: creator to a plain wallet.",
+    "  a wallet the creator paid is marked? true",
+    "",
+    "  ok   the pool is not marked by receiving from the creator",
+    "  ok   so a buyer is not marked by buying from the pool",
+    "  ok   and the buyer can move everything they bought",
+    "  ok   while a plain wallet the creator paid is still marked",
+    "",
+    "4 checks. The badge catches the creator and lets the market alone."
+  ]
+}

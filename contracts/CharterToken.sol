@@ -386,7 +386,21 @@ contract CharterToken {
         // affect the limits on the transfer that created it. A marked address
         // marks whoever it sends to, which is what makes this cover a cluster
         // rather than a single address.
-        if (badges.taintFollows && restricted[from] && !restricted[to]) {
+        //
+        // Except a contract. Without that exception this badge destroys the
+        // token it is meant to protect: the creator adds liquidity, the pool
+        // receives from a marked address and is marked itself, and from then on
+        // every single buyer is marked by the pool that sold to them. Everybody
+        // who ever bought would be held to the creator's limits. A badge that
+        // catches everyone has caught no one, and it would have shipped looking
+        // like it worked, because a pool is the one recipient the tests did not
+        // have.
+        //
+        // A contract is not somebody's wallet. What this gives up is a creator
+        // who routes through a contract they wrote; what it keeps is the token
+        // being usable at all.
+        if (badges.taintFollows && restricted[from] && !restricted[to]
+                && to.code.length == 0) {
             restricted[to] = true;
             emit Restricted(to, from);
         }

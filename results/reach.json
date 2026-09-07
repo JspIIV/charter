@@ -1,0 +1,82 @@
+{
+  "measured_at": "2026-09-07T15:23:58.381Z",
+  "chain": "genlayer studionet",
+  "probe": "0xa15a2e339cCc75308c7Ad3010Cf239489101C04f",
+  "subject": "0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+  "results": [
+    {
+      "how": "post",
+      "url": "https://sepolia.base.org",
+      "what": "a balance, the control: this is the one we already rely on elsewhere",
+      "outcome": "REACHED",
+      "sample": "status 200 | {\"jsonrpc\":\"2.0\",\"result\":\"0x1c4305d97699ac\",\"id\":1}\n"
+    },
+    {
+      "how": "post",
+      "url": "https://sepolia.base.org",
+      "what": "how many transactions it has sent, which is a count and not a history",
+      "outcome": "REACHED",
+      "sample": "status 200 | {\"jsonrpc\":\"2.0\",\"result\":\"0x46\",\"id\":1}\n"
+    },
+    {
+      "how": "post",
+      "url": "https://sepolia.base.org",
+      "what": "logs naming it as a recipient, which covers token moves but never gas",
+      "outcome": "REACHED",
+      "sample": "status 200 | {\"jsonrpc\":\"2.0\",\"result\":[],\"id\":1}\n"
+    },
+    {
+      "how": "get",
+      "url": "https://api-sepolia.basescan.org/api?module=account&action=txlist&address=0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C&sort=asc&page=1&offset=5",
+      "what": "an explorer API with no key, which is where a real history would come from",
+      "outcome": "REACHED",
+      "sample": "status 200 | {\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"You are using a deprecated V1 endpoint, switch to Etherscan API V2 using https://docs.etherscan.io/v2-migration\"}"
+    },
+    {
+      "how": "render",
+      "url": "https://sepolia.basescan.org/address/0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C",
+      "what": "the explorer page itself, scraped",
+      "outcome": "REFUSED",
+      "sample": "the fetch raised: {'causes': ['WEBPAGE_LOAD_FAILED'], 'ctx': {'body': '', 'status': 403, 'url': 'https://sepolia.basescan.org/address/0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C'}}"
+    }
+  ],
+  "transcript": [
+    "What a GenLayer round can reach on Base Sepolia.",
+    "",
+    "  probe 0xa15a2e339cCc75308c7Ad3010Cf239489101C04f",
+    "",
+    "a balance, the control: this is the one we already rely on elsewhere",
+    "    (post settled in 42s)",
+    "    REACHED",
+    "    status 200 | {\"jsonrpc\":\"2.0\",\"result\":\"0x1c4305d97699ac\",\"id\":1} ",
+    "",
+    "how many transactions it has sent, which is a count and not a history",
+    "    (post settled in 42s)",
+    "    REACHED",
+    "    status 200 | {\"jsonrpc\":\"2.0\",\"result\":\"0x46\",\"id\":1} ",
+    "",
+    "logs naming it as a recipient, which covers token moves but never gas",
+    "    (post settled in 42s)",
+    "    REACHED",
+    "    status 200 | {\"jsonrpc\":\"2.0\",\"result\":[],\"id\":1} ",
+    "",
+    "an explorer API with no key, which is where a real history would come from",
+    "    (get settled in 42s)",
+    "    REACHED",
+    "    status 200 | {\"status\":\"0\",\"message\":\"NOTOK\",\"result\":\"You are using a deprecated V1 endpoint, switch to Etherscan API V2 using https://docs.etherscan.io/v2-migration\"}",
+    "",
+    "the explorer page itself, scraped",
+    "    (render settled in 1849s)",
+    "    REFUSED",
+    "    the fetch raised: {'causes': ['WEBPAGE_LOAD_FAILED'], 'ctx': {'body': '', 'status': 403, 'url': 'https://sepolia.basescan.org/address/0x0b57877ec84D96b672CD47D8Ea4424283fDB9F6C'}}",
+    "",
+    "---",
+    "  REACHED      a balance, the control: this is the one we already rely on elsewhere",
+    "  REACHED      how many transactions it has sent, which is a count and not a history",
+    "  REACHED      logs naming it as a recipient, which covers token moves but never gas",
+    "  REACHED      an explorer API with no key, which is where a real history would come from",
+    "  REFUSED      the explorer page itself, scraped",
+    "",
+    "4 of 5 reachable from inside a contract."
+  ]
+}
