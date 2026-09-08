@@ -76,7 +76,7 @@ say('');
 
 // Launched through the launchpad, so this is the token a person would get.
 const launchpad = new Contract(
-  process.env.LAUNCHPAD || '0xB8688c7f31580EbF0A55d14534C2863b8Ed89709',
+  process.env.LAUNCHPAD || '0x6fFbf8e8F6986ea7b65A0bfDdD8D984e6Fcff0E3',
   padArt.abi, creator);
 say('  launchpad ' + await launchpad.getAddress());
 
