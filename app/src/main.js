@@ -210,6 +210,7 @@ function head() {
     <header>
       <a class="wordmark" href="#">charter<span>.fun</span></a>
       <a class="launch-link" href="#launch">Launch a token</a>
+      <a class="launch-link" href="operate.html">Launch with a live rule</a>
       <div class="head-right">
         <span class="net">${state.evm || state.route === 'launch'
           ? 'Base Sepolia' : 'GenLayer Asimov'}</span>

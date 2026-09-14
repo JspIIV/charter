@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>charter.fun — launch and operate a live rule</title>
+<style>
+  :root{ --bg:#0C090B; --card:#150F13; --line:#2A1F26; --ink:#F4F1F2; --dim:#B99FAC;
+    --faint:#7E6A74; --mauve:#C49BAD; --plum:#3D2731; --warm:#E9C5A2; --red:#ff6b6b; --grn:#7BD88F; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 ui-sans-serif,system-ui,sans-serif}
+  a{color:var(--mauve)}
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px 60px}
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:10px}
+  .brand{font-weight:800;font-size:20px}.brand i{color:var(--mauve);font-style:normal}
+  .net{font:12px ui-monospace,monospace;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:5px 10px}
+  button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:#1e1419;color:var(--ink);padding:9px 14px}
+  button.primary{background:var(--mauve);color:#1a0f16;border-color:transparent;font-weight:700}
+  button:disabled{opacity:.5;cursor:default}
+  h1{font-size:26px;margin:24px 0 6px}h2{font-size:16px;color:var(--dim);font-family:ui-monospace,monospace;letter-spacing:1px;text-transform:uppercase;margin:26px 0 10px}
+  .lead{color:var(--dim);max-width:640px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
+  label{display:block;font:12px ui-monospace,monospace;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin:12px 0 5px}
+  input,textarea,select{width:100%;background:#0b0709;border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:10px 11px;font:inherit}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .muted{color:var(--faint);font-size:13px}
+  .status{margin-top:12px;color:var(--dim);font-size:14px;min-height:18px}
+  .badge{display:inline-block;font:12px ui-monospace,monospace;font-weight:700;padding:3px 9px;border-radius:999px}
+  .b-wait{background:#241c20;color:var(--dim)} .b-fired{background:#3a1720;color:var(--red)}
+  .rule{border-top:1px solid var(--line);padding:10px 0;font-size:14px}
+  .rule .k{color:var(--faint);font-size:12px}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px}
+  .kv .k{color:var(--dim)} .mono{font-family:ui-monospace,monospace}
+  code{background:#0b0709;border:1px solid var(--line);border-radius:6px;padding:1px 5px;font-size:12px}
+  footer{color:var(--faint);font-size:13px;border-top:1px solid var(--line);padding-top:18px;margin-top:26px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">charter<i>.fun</i> — live rule</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="net">GenLayer Asimov</span>
+      <button id="connect">Connect wallet</button>
+    </div>
+  </header>
+
+  <h1>Launch a token that carries a rule, and operate it.</h1>
+  <p class="lead">This deploys the project's GenLayer rule contract, <code>contracts/token.py</code>,
+    fetched straight from the repository so the code you run is the code you can read. The token is
+    launched with a plain-language rule, a treasury and a bounty, and then anyone can fund it and
+    fire the rule. When the rule's condition is true, a validator round burns from the treasury.</p>
+
+  <h2>1 · Launch a protected token</h2>
+  <section>
+    <div class="grid">
+      <div><label>Name</label><input id="name" value="Charter Demo" /></div>
+      <div><label>Symbol</label><input id="symbol" value="CDEMO" /></div>
+    </div>
+    <div class="grid">
+      <div><label>Supply</label><input id="supply" value="1000000" /></div>
+      <div><label>Treasury share (%)</label><input id="tshare" value="30" /></div>
+    </div>
+    <label>Rule — the condition, in plain words</label>
+    <input id="when" value="the page states that the security certificate has expired" />
+    <div class="grid">
+      <div><label>Source URL the round checks</label><input id="url" placeholder="https://…" value="https://gist.githubusercontent.com/JspIIV/2ff5af1cd421395420c9ec33b9ecbebf/raw/claim_false.txt" /></div>
+      <div><label>Action</label><select id="action"><option value="BURN">BURN</option><option value="DISTRIBUTE">DISTRIBUTE</option></select></div>
+    </div>
+    <div class="grid">
+      <div><label>Amount (from treasury)</label><input id="amount" value="40000" /></div>
+      <div><label>Linkage (EVM token or launch id, optional)</label><input id="linkage" placeholder="0x… on Base, or a launch id" /></div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="launch">Deploy and link</button>
+      <span class="muted">Deploys the repo's <code>token.py</code> from your wallet. One round-sized transaction.</span>
+    </div>
+    <div class="status" id="lstatus"></div>
+  </section>
+
+  <h2>2 · Operate a token</h2>
+  <section>
+    <div class="actions" style="margin-top:0">
+      <input id="addr" placeholder="0x… a charter token on Asimov" style="flex:1;min-width:240px" />
+      <button id="load">Load</button>
+    </div>
+    <div id="panel" hidden>
+      <div class="kv"><span class="k">Token</span><span class="mono" id="p-name"></span></div>
+      <div class="kv"><span class="k">Treasury / Bounty</span><span class="mono" id="p-tb"></span></div>
+      <div class="kv"><span class="k">Linkage</span><span class="mono" id="p-link"></span></div>
+      <div id="rules"></div>
+      <div class="actions">
+        <input id="fundamt" placeholder="bounty to add (wei)" value="2000000000000000" style="max-width:220px" />
+        <button id="fund">Fund bounty</button>
+        <button class="primary" id="tick">Fire the rule (tick 0)</button>
+      </div>
+      <div class="status" id="ostatus"></div>
+      <p class="muted">Firing runs a validator round: it reads the source, and if the condition is true it burns from the treasury. A false condition changes nothing. On Asimov the bounty payout is recorded but native value does not move on testnet; the burn is real.</p>
+    </div>
+  </section>
+
+  <footer>
+    Contract: <a href="https://github.com/JspIIV/charter/blob/master/contracts/token.py" target="_blank" rel="noopener">contracts/token.py</a> ·
+    Explorer: <a id="exp" href="https://explorer-asimov.genlayer.com" target="_blank" rel="noopener">GenLayer Asimov</a> ·
+    <a href="./index.html">back to charter.fun</a>
+  </footer>
+</div>
+
+<script type="module">
+import { createClient } from "https://esm.sh/genlayer-js@1.1.8";
+import { testnetAsimov } from "https://esm.sh/genlayer-js@1.1.8/chains";
+
+const RAW = "https://raw.githubusercontent.com/JspIIV/charter/master/contracts/token.py";
+const CHAIN_ID_HEX = "0x107d";
+const CHAIN_PARAMS = { chainId: CHAIN_ID_HEX, chainName: "GenLayer Asimov",
+  nativeCurrency:{name:"GEN",symbol:"GEN",decimals:18},
+  rpcUrls:["https://rpc-asimov.genlayer.com"], blockExplorerUrls:["https://explorer-asimov.genlayer.com"] };
+const EXPLORER = "https://explorer-asimov.genlayer.com";
+const ROUND_GAS = 8_000_000n, WALLET_COMPUTES=["nonce","type","chainId"];
+
+const reader = createClient({ chain: testnetAsimov });
+let account = null;
+const $ = id => document.getElementById(id);
+const short = a => a?`${String(a).slice(0,6)}…${String(a).slice(-4)}`:"";
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const transient = e => /revert|-32005|-32603|at capacity|gas rate|rate limit|backpressure|fetch failed|timeout|502|503|429/i
+  .test(String(e?.details||e?.shortMessage||e?.message||e));
+
+async function read(address, fn, args=[]) {
+  for (let i=1;i<=4;i++){ try { const raw = await reader.readContract({address,functionName:fn,args});
+      try{return JSON.parse(raw)}catch{return raw} } catch(e){ if(!transient(e))throw e; await sleep(1500*i); } }
+}
+function walletFriendly(p){ return { ...p, request: async payload=>{
+  if(payload?.method!=="eth_sendTransaction") return p.request(payload);
+  const tx={...(payload.params?.[0]??{})}; for(const k of WALLET_COMPUTES) delete tx[k];
+  if(BigInt(tx.gas??0)<ROUND_GAS) tx.gas="0x"+ROUND_GAS.toString(16);
+  try{ return await p.request({method:"eth_sendTransaction",params:[tx]}); }
+  catch(err){ if(err?.code!==-32602||tx.gasPrice===undefined) throw err; const t={...tx}; delete t.gasPrice;
+    return p.request({method:"eth_sendTransaction",params:[t]}); } } }; }
+async function useGenLayer(){ const cur=await window.ethereum.request({method:"eth_chainId"});
+  if(String(cur).toLowerCase()===CHAIN_ID_HEX) return;
+  try{ await window.ethereum.request({method:"wallet_switchEthereumChain",params:[{chainId:CHAIN_ID_HEX}]}); }
+  catch(err){ if(err&&(err.code===4902||err.code===-32603)){ await window.ethereum.request({method:"wallet_addEthereumChain",params:[CHAIN_PARAMS]}); return; } throw err; } }
+function client(){ return createClient({ chain: testnetAsimov, account, provider: walletFriendly(window.ethereum) }); }
+
+async function ensureWallet(){ if(!window.ethereum) throw new Error("No browser wallet found. Reading works without one; launching and firing need MetaMask.");
+  if(!account){ const a=await window.ethereum.request({method:"eth_requestAccounts"}); account=a[0]; $("connect").textContent=short(account); } await useGenLayer(); }
+$("connect").onclick=()=>ensureWallet().catch(e=>alert(e.message||e));
+
+async function sendWrite(fn, args, value=0n){
+  const c=client();
+  for(let attempt=1;;attempt++){ try{ return await c.writeContract({address:$("addr").value.trim(),functionName:fn,args,value}); }
+    catch(e){ if(!transient(e)||attempt>=6) throw e; await sleep(4000*attempt); } }
+}
+
+/* ---- launch ---- */
+$("launch").onclick = async () => {
+  try {
+    await ensureWallet();
+    $("lstatus").textContent = "Fetching the contract source from the repository…";
+    const src = await (await fetch(RAW, {cache:"no-store"})).text();
+    if (!src.includes("class Token")) throw new Error("could not fetch token.py from the repo");
+    const rules = [{ when:$("when").value.trim(), url:$("url").value.trim(),
+      then:$("action").value, amount:parseInt($("amount").value,10)||0 }];
+    const args = [ $("name").value.trim(), $("symbol").value.trim(), $("supply").value.trim(),
+      $("tshare").value.trim(), JSON.stringify(rules), account, $("linkage").value.trim() ];
+    $("lstatus").textContent = "Deploying the repo's token.py with your rule… approve it in your wallet.";
+    const code = new TextEncoder().encode(src);
+    const c = client(); let hash;
+    for (let attempt=1;;attempt++){ try{ hash = await c.deployContract({ code, args, leaderOnly:false }); break; }
+      catch(e){ if(!transient(e)||attempt>=6) throw e; $("lstatus").textContent="Transient revert, retrying…"; await sleep(5000*attempt); } }
+    $("lstatus").textContent = "Deployed, waiting for the address… tx "+short(hash);
+    const r = await reader.waitForTransactionReceipt({ hash, status:"FINALIZED", retries:120, interval:6000 });
+    const addr = r?.data?.contract_address ?? r?.contract_address ?? r?.data?.recipient;
+    if (!addr) throw new Error("deploy finalized but no address in the receipt; check the explorer for tx "+hash);
+    $("addr").value = addr;
+    $("lstatus").innerHTML = "Launched and linked: <a href='"+EXPLORER+"/address/"+addr+"' target='_blank' rel='noopener'>"+addr+"</a>. Now fund and fire it below.";
+    await loadToken();
+  } catch(e){ $("lstatus").textContent = "Launch failed: "+(e?.shortMessage||e?.message||e); }
+};
+
+/* ---- operate ---- */
+$("load").onclick = () => loadToken().catch(e=>$("ostatus").textContent=String(e.message||e));
+async function loadToken(){
+  const address = $("addr").value.trim(); if(!address) return;
+  const st = await read(address,"status"); const rv = await read(address,"rules_view");
+  $("p-name").textContent = `${st.name} (${st.symbol})`;
+  $("p-tb").textContent = `treasury ${st.treasury} · bounty ${st.bounty}`;
+  $("p-link").textContent = st.linkage || "(none)";
+  $("rules").innerHTML = (rv.rules||[]).map(r=>`<div class="rule">
+    <div>#${r.index} <b>${r.when}</b></div>
+    <div class="k">checks ${r.checked_against||"(no page)"} · ${r.then} ${r.amount} ·
+      <span class="badge ${r.state==='FIRED'?'b-fired':'b-wait'}">${r.state}</span></div>
+    ${r.why?`<div class="k">why: ${r.why}</div>`:""}</div>`).join("") || '<div class="muted">no rules</div>';
+  $("exp").href = `${EXPLORER}/address/${address}`;
+  $("panel").hidden = false;
+}
+$("fund").onclick = async () => {
+  try{ await ensureWallet(); $("ostatus").textContent="Funding the bounty… approve in wallet.";
+    const v = BigInt($("fundamt").value.trim()||"0");
+    await sendWrite("fund",[],v); $("ostatus").textContent="Funded. Reloading…"; await sleep(4000); await loadToken(); $("ostatus").textContent="Bounty funded.";
+  }catch(e){ $("ostatus").textContent="Fund failed: "+(e?.shortMessage||e?.message||e); }
+};
+$("tick").onclick = async () => {
+  try{ await ensureWallet(); const before = JSON.stringify((await read($("addr").value.trim(),"rules_view")).rules?.[0]||{});
+    $("ostatus").textContent="Firing the rule: a round reads the page and decides. This takes a minute or two…";
+    await sendWrite("tick",["0"],0n);
+    for(let i=0;i<90;i++){ await sleep(4000);
+      const rv = await read($("addr").value.trim(),"rules_view"); const now=JSON.stringify(rv.rules?.[0]||{});
+      $("ostatus").textContent=`Round running… ${(i+1)*4}s`;
+      if(now!==before){ await loadToken(); const r0=rv.rules?.[0]||{};
+        $("ostatus").textContent = r0.state==="FIRED" ? `Rule fired. ${r0.why||""}` : `Round returned, condition not met. ${r0.why||""}`; return; } }
+    $("ostatus").textContent="Still settling; reload in a minute.";
+  }catch(e){ $("ostatus").textContent="Fire failed: "+(e?.shortMessage||e?.message||e); }
+};
+
+const q = new URLSearchParams(location.search).get("at"); if(q){ $("addr").value=q; loadToken(); }
+</script>
+</body>
+</html>
