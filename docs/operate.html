@@ -118,6 +118,13 @@ const CHAIN_PARAMS = { chainId: CHAIN_ID_HEX, chainName: "GenLayer Asimov",
   rpcUrls:["https://rpc-asimov.genlayer.com"], blockExplorerUrls:["https://explorer-asimov.genlayer.com"] };
 const EXPLORER = "https://explorer-asimov.genlayer.com";
 const ROUND_GAS = 8_000_000n, WALLET_COMPUTES=["nonce","type","chainId"];
+// The block gas limit on Asimov is 100M, and a transaction that asks for more is
+// rejected outright with "gas limit too high" before it can run. The stable SDK
+// sizes a contract deploy by estimate times a buffer, which for token.py lands
+// above the cap, so the wallet is handed a limit the chain will not take. The
+// deploy itself needs about 90M (scripts/launch_and_fire.mjs sets that), so the
+// request is clamped just under the cap: high enough to deploy, low enough to send.
+const GAS_CAP = 95_000_000n;
 
 const reader = createClient({ chain: testnetAsimov });
 let account = null;
@@ -135,6 +142,7 @@ function walletFriendly(p){ return { ...p, request: async payload=>{
   if(payload?.method!=="eth_sendTransaction") return p.request(payload);
   const tx={...(payload.params?.[0]??{})}; for(const k of WALLET_COMPUTES) delete tx[k];
   if(BigInt(tx.gas??0)<ROUND_GAS) tx.gas="0x"+ROUND_GAS.toString(16);
+  if(BigInt(tx.gas??0)>GAS_CAP) tx.gas="0x"+GAS_CAP.toString(16);
   try{ return await p.request({method:"eth_sendTransaction",params:[tx]}); }
   catch(err){ if(err?.code!==-32602||tx.gasPrice===undefined) throw err; const t={...tx}; delete t.gasPrice;
     return p.request({method:"eth_sendTransaction",params:[t]}); } } }; }
