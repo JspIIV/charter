@@ -91,7 +91,7 @@
       <div class="kv"><span class="k">Linkage</span><span class="mono" id="p-link"></span></div>
       <div id="rules"></div>
       <div class="actions">
-        <input id="fundamt" placeholder="bounty to add (wei)" value="2000000000000000" style="max-width:220px" />
+        <input id="fundamt" placeholder="bounty to add (GEN)" value="0.002" style="max-width:220px" />
         <button id="fund">Fund bounty</button>
         <button class="primary" id="tick">Fire the rule (tick 0)</button>
       </div>
@@ -131,6 +131,12 @@ let account = null;
 const $ = id => document.getElementById(id);
 const short = a => a?`${String(a).slice(0,6)}…${String(a).slice(-4)}`:"";
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
+// The bounty is entered in GEN, the chain wants wei. Accept a plain decimal and
+// turn it into an 18-decimal integer, so "0.002" does not have to be typed as
+// 2000000000000000. A field that already looks like wei (no dot) passes through.
+const toWei = s => { const t=String(s??"").trim(); if(!t) return 0n;
+  if(!t.includes(".")) return BigInt(t);
+  const [i,f=""]=t.split("."); return BigInt((i||"0")+(f+"0".repeat(18)).slice(0,18)); };
 const transient = e => /revert|-32005|-32603|at capacity|gas rate|rate limit|backpressure|fetch failed|timeout|502|503|429/i
   .test(String(e?.details||e?.shortMessage||e?.message||e));
 
@@ -209,7 +215,7 @@ async function loadToken(){
 }
 $("fund").onclick = async () => {
   try{ await ensureWallet(); $("ostatus").textContent="Funding the bounty… approve in wallet.";
-    const v = BigInt($("fundamt").value.trim()||"0");
+    const v = toWei($("fundamt").value);
     await sendWrite("fund",[],v); $("ostatus").textContent="Funded. Reloading…"; await sleep(4000); await loadToken(); $("ostatus").textContent="Bounty funded.";
   }catch(e){ $("ostatus").textContent="Fund failed: "+(e?.shortMessage||e?.message||e); }
 };
