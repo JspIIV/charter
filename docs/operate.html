@@ -70,7 +70,7 @@
     </div>
     <div class="grid">
       <div><label>Amount (from treasury)</label><input id="amount" value="40000" /></div>
-      <div><label>Linkage (EVM token or launch id, optional)</label><input id="linkage" placeholder="0x… on Base, or a launch id" /></div>
+      <div><label>Linkage (EVM token or launch id, optional)</label><input id="linkage" placeholder="0x… on Base, or a launch id" value="0xade834a3dA17275ad7493E7181daA3641e2F74ca" /></div>
     </div>
     <div class="actions">
       <button class="primary" id="launch">Deploy and link</button>
@@ -180,7 +180,10 @@ $("launch").onclick = async () => {
       catch(e){ if(!transient(e)||attempt>=6) throw e; $("lstatus").textContent="Transient revert, retrying…"; await sleep(5000*attempt); } }
     $("lstatus").textContent = "Deployed, waiting for the address… tx "+short(hash);
     const r = await reader.waitForTransactionReceipt({ hash, status:"FINALIZED", retries:120, interval:6000 });
-    const addr = r?.data?.contract_address ?? r?.contract_address ?? r?.data?.recipient;
+    // The v0.6 receipt carries the new contract in `contractAddress` (and mirrors
+    // it in top-level `recipient`); the older field names are kept as a fallback
+    // for the stable network, whose receipt nests them under `data`.
+    const addr = r?.contractAddress ?? r?.recipient ?? r?.data?.contract_address ?? r?.contract_address ?? r?.data?.recipient;
     if (!addr) throw new Error("deploy finalized but no address in the receipt; check the explorer for tx "+hash);
     $("addr").value = addr;
     $("lstatus").innerHTML = "Launched and linked: <a href='"+EXPLORER+"/address/"+addr+"' target='_blank' rel='noopener'>"+addr+"</a>. Now fund and fire it below.";
